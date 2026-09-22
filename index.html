@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ระบบแจ้งซ่อม</title>
+<style>
+:root{
+  --bg:#F4F6F8; --card:#FFFFFF; --ink:#1F2933; --muted:#6B7785; --line:#E3E8EE;
+  --pri:#06A94D; --pri-ink:#FFFFFF; --pri-soft:#E6F7EE;
+  --blue:#1C7ED6; --blue-soft:#E7F1FB; --warn:#E67700; --warn-soft:#FFF4E6;
+  --bad:#C92A2A; --bad-soft:#FFF0F0; --violet:#7048E8;
+  --r:14px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Sarabun","Noto Sans Thai","Leelawadee UI",system-ui,sans-serif}
+body{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
+.top{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;gap:10px}
+.top h1{font-size:17px;margin:0;flex:1}
+.top .back{border:0;background:none;font-size:22px;line-height:1;padding:2px 6px;color:var(--muted)}
+.wrap{max-width:640px;margin:0 auto;padding:12px 12px 0}
+.card{background:var(--card);border-radius:var(--r);padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(16,24,40,.05)}
+.card h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+.card h2 .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--pri-soft);color:var(--pri);font-size:12px}
+label.f{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+label.f b{color:var(--bad);font-weight:600}
+input[type=text],input[type=tel],input[type=date],input[type=number],select,textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;background:#FBFCFD;color:var(--ink)}
+textarea{min-height:76px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--pri-soft);border-color:var(--pri)}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line);background:#FBFCFD;border-radius:999px;padding:8px 12px;font:inherit;font-size:14px;color:var(--ink)}
+.chip.on{background:var(--pri-soft);border-color:var(--pri);color:#036B30;font-weight:600}
+.grp{border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden}
+.grp>.gh{padding:10px 12px;font-weight:600;font-size:14px;background:#FAFBFC;display:flex;gap:8px}
+.grp>.gh .gn{color:var(--pri)}
+.chk{display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-top:1px solid var(--line);font-size:14px}
+.chk input{width:20px;height:20px;margin:1px 0 0;accent-color:var(--pri);flex:none}
+.hint{font-size:12.5px;color:var(--muted);margin-top:4px}
+.photos{display:flex;gap:8px;flex-wrap:wrap}
+.ph{width:78px;height:78px;border-radius:10px;background:#EEF1F4 center/cover;position:relative;border:1px solid var(--line)}
+.ph button{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:0;background:#000A;color:#fff;font-size:13px}
+.ph.add{display:grid;place-items:center;color:var(--muted);font-size:26px;border-style:dashed;cursor:pointer}
+.sig{border:1.5px dashed #B8C2CC;border-radius:12px;background:#fff;position:relative;touch-action:none}
+.sig canvas{display:block;width:100%;height:170px;border-radius:12px}
+.sig .ph-t{position:absolute;inset:0;display:grid;place-items:center;color:#A0AAB4;pointer-events:none;font-size:14px}
+.sig .clr{position:absolute;right:8px;top:8px;border:0;background:#F1F3F5;border-radius:8px;padding:4px 10px;font:inherit;font-size:13px;color:var(--muted)}
+.btn{display:block;width:100%;border:0;border-radius:12px;padding:13px;font:inherit;font-weight:700;font-size:16px;background:var(--pri);color:var(--pri-ink)}
+.btn.sec{background:#EEF1F4;color:var(--ink)}
+.btn.blue{background:var(--blue)}.btn.warn{background:var(--warn)}.btn.bad{background:var(--bad)}
+.btn[disabled]{opacity:.55}
+.btn.sm{display:inline-block;width:auto;padding:8px 14px;font-size:14px;border-radius:10px}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom));z-index:6}
+.bar .in{max-width:640px;margin:0 auto;display:flex;gap:10px}.bar .in>*{flex:1}
+.consent{display:flex;gap:10px;font-size:13px;color:var(--muted);align-items:flex-start}
+.consent input{width:20px;height:20px;accent-color:var(--pri);flex:none;margin-top:1px}
+.badge{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.s-new{background:var(--warn-soft);color:var(--warn)} .s-asg{background:var(--blue-soft);color:var(--blue)}
+.s-pln{background:#F3F0FF;color:var(--violet)} .s-wa{background:#E6FCF5;color:#087F5B}
+.s-rej{background:var(--bad-soft);color:var(--bad)} .s-cls{background:#EEF1F4;color:#495057} .s-cxl{background:#F8F9FA;color:#ADB5BD}
+.tk{display:block;background:var(--card);border-radius:var(--r);padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 2px rgba(16,24,40,.05);color:inherit;text-decoration:none}
+.tk .l1{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tk .no{font-weight:700}
+.tk .l2{font-size:14px;margin-top:4px}
+.tk .l3{font-size:12.5px;color:var(--muted);margin-top:4px;display:flex;gap:10px;flex-wrap:wrap}
+.tk .od{color:var(--bad);font-weight:600}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:6px 10px;font-size:14px}
+.kv dt{color:var(--muted)} .kv dd{margin:0}
+.tl{list-style:none;margin:0;padding:0 0 0 14px;border-left:2px solid var(--line)}
+.tl li{position:relative;padding:0 0 10px 8px;font-size:13.5px}
+.tl li:before{content:"";position:absolute;left:-20px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--pri)}
+.tl .ts{color:var(--muted);font-size:12px}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px}
+.tab{border:0;background:#E9ECEF;border-radius:999px;padding:7px 13px;font:inherit;font-size:14px;white-space:nowrap;color:var(--ink)}
+.tab.on{background:var(--ink);color:#fff}
+.tab i{font-style:normal;opacity:.7;margin-left:4px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.stat{background:var(--card);border-radius:12px;padding:10px 6px;text-align:center}
+.stat b{display:block;font-size:20px}.stat span{font-size:11.5px;color:var(--muted)}
+.rate{display:flex;gap:6px}
+.rate button{flex:1;border:1px solid var(--line);background:#FBFCFD;border-radius:10px;padding:8px 2px;font:inherit;font-size:12px;color:var(--ink)}
+.rate button b{display:block;font-size:18px}
+.rate button.on{background:var(--pri-soft);border-color:var(--pri);color:#036B30}
+.seg{display:flex;gap:8px}.seg button{flex:1;border:1px solid var(--line);background:#FBFCFD;border-radius:10px;padding:10px 6px;font:inherit;font-size:14px;color:var(--ink)}
+.seg button.on{background:var(--pri-soft);border-color:var(--pri);color:#036B30;font-weight:700}
+.seg button.on.bad{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}
+.center{text-align:center}
+.done-ic{width:72px;height:72px;border-radius:50%;background:var(--pri-soft);color:var(--pri);display:grid;place-items:center;font-size:38px;margin:24px auto 10px}
+.muted{color:var(--muted)} .small{font-size:13px}
+.note{background:var(--blue-soft);color:#1864AB;border-radius:10px;padding:10px 12px;font-size:13.5px;margin-bottom:12px}
+.note.warn{background:var(--warn-soft);color:#A35200}
+.empty{text-align:center;color:var(--muted);padding:36px 0}
+.toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:#212529;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:20;max-width:90%;text-align:center}
+.loading{position:fixed;inset:0;background:#fff9;display:grid;place-items:center;z-index:30}
+.spin{width:36px;height:36px;border:4px solid var(--pri-soft);border-top-color:var(--pri);border-radius:50%;animation:s 1s linear infinite}
+@keyframes s{to{transform:rotate(360deg)}}
+.imgs{display:flex;gap:8px;flex-wrap:wrap}.imgs img{width:96px;height:96px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.hr{height:1px;background:var(--line);margin:12px 0}
+.hidden{display:none!important}
+
+.dwrap{max-width:1180px;margin:0 auto;padding:12px 12px 0}
+.dgrid{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:900px){.dgrid{grid-template-columns:1fr 1fr}.dgrid .wide{grid-column:1/-1}.kpis{grid-template-columns:repeat(4,1fr)!important}}
+.dgrid .card{margin:0}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px}
+.kpi{background:var(--card);border-radius:var(--r);padding:12px 14px;box-shadow:0 1px 2px rgba(16,24,40,.05)}
+.kpi .lb{font-size:13px;color:var(--muted)} .kpi .v{font-size:28px;font-weight:700;line-height:1.2}
+.kpi .dl{font-size:12.5px} .up{color:#2B8A3E} .dn{color:var(--bad)} .nt{color:var(--muted)}
+.dhead{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.dhead select{width:auto;flex:1;min-width:180px;max-width:280px}
+.fchips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.fchip{border:0;border-radius:10px;padding:8px 12px;font:inherit;font-size:14px;font-weight:600}
+.fchip b{font-size:18px;margin-left:6px}
+.fchip.on{outline:2px solid var(--ink)}
+.flist a{display:flex;justify-content:space-between;gap:8px;padding:9px 2px;border-top:1px solid var(--line);color:inherit;text-decoration:none;font-size:14px}
+.flist a span:last-child{color:var(--muted);white-space:nowrap;font-size:13px}
+.hbar{display:grid;grid-template-columns:minmax(90px,38%) 1fr 34px;gap:8px;align-items:center;font-size:13.5px;margin:6px 0}
+.hbar .tr{background:#EEF1F4;border-radius:6px;height:14px;overflow:hidden}.hbar .fl{height:100%;border-radius:6px}
+.hbar .n{text-align:right;font-weight:700}
+table.tt{width:100%;border-collapse:collapse;font-size:14px}
+table.tt th{font-size:12.5px;color:var(--muted);font-weight:600;text-align:center;padding:6px 4px;border-bottom:1px solid var(--line)}
+table.tt td{text-align:center;padding:8px 4px;border-bottom:1px solid var(--line)} table.tt td:first-child,table.tt th:first-child{text-align:left}
+.rlist a{display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line);color:inherit;text-decoration:none;font-size:14px}
+.rlist .kd{font-size:11px;font-weight:700;border-radius:6px;padding:1px 7px;color:#fff;background:#2A6BD8}.rlist .kd.pdf{background:#C92A2A}
+.legend{display:flex;gap:14px;font-size:12.5px;color:var(--muted);margin-top:4px}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="loading" class="loading hidden"><div class="spin"></div></div>
+
+<script src="config.js"></script>
+<script>
+/* ================= core ================= */
+const CFG = window.APP_CONFIG || {};
+const Q = new URLSearchParams(location.search);
+const MOCK = Q.get('mock') === '1';
+let ID_TOKEN = null, INIT = null, PROFILE = null;
+const $ = s => document.querySelector(s);
+const app = $('#app');
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const busy = on => $('#loading').classList.toggle('hidden', !on);
+function toast(msg, ms) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), ms || 2600); }
+const LS = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
+
+async function api(action, data) {
+  if (MOCK) return window.mockApi(action, data || {});
+  const res = await fetch(CFG.GAS_URL, { method: 'POST', body: JSON.stringify({ action, idToken: ID_TOKEN, data: data || {} }) });
+  const j = await res.json();
+  if (!j.ok) {
+    if (j.error === 'SESSION_EXPIRED') { liff.logout && liff.logout(); location.reload(); }
+    throw new Error(j.error || 'เกิดข้อผิดพลาด');
+  }
+  return j;
+}
+async function run(fn) { busy(true); try { return await fn(); } catch (e) { toast(e.message || String(e), 4000); throw e; } finally { busy(false); } }
+
+function statusCls(s) {
+  return { 'รอมอบหมาย': 's-new', 'มอบหมายแล้ว': 's-asg', 'นัดหมายแล้ว': 's-pln', 'รอตรวจรับ': 's-wa', 'ไม่ผ่านตรวจรับ': 's-rej', 'ดำเนินการเสร็จสิ้น': 's-cls', 'ยกเลิก': 's-cxl' }[s] || 's-cls';
+}
+const badge = s => `<span class="badge ${statusCls(s)}">${esc(s)}</span>`;
+function topBar(title, backTo) {
+  return `<div class="top">${backTo ? `<button class="back" onclick="go('${backTo}')">‹</button>` : ''}<h1>${esc(title)}</h1></div>`;
+}
+function go(page, no, extra) {
+  const u = new URL(location.href);
+  u.searchParams.set('p', page);
+  if (no) u.searchParams.set('no', no); else u.searchParams.delete('no');
+  u.searchParams.delete('onsite');
+  if (extra) Object.keys(extra).forEach(k => u.searchParams.set(k, extra[k]));
+  history.pushState({}, '', u); route();
+}
+window.addEventListener('popstate', route);
+function closeApp() { if (!MOCK && window.liff && liff.isInClient()) liff.closeWindow(); else go('mine'); }
+
+/* ============ image & signature helpers ============ */
+function compressImage(file, max, q) {
+  return new Promise((resolve, reject) => {
+    const img = new Image(); const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const s = Math.min(1, (max || 1280) / Math.max(img.width, img.height));
+      const c = document.createElement('canvas'); c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', q || 0.72));
+    };
+    img.onerror = () => reject(new Error('อ่านไฟล์รูปไม่ได้'));
+    img.src = url;
+  });
+}
+function photoPicker(el, max) {
+  const st = { list: [] };
+  const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.multiple = true; input.className = 'hidden';
+  el.after(input);
+  const draw = () => {
+    el.innerHTML = st.list.map((d, i) => `<div class="ph" style="background-image:url(${d})"><button type="button" data-i="${i}">✕</button></div>`).join('') +
+      (st.list.length < max ? '<div class="ph add">＋</div>' : '');
+    el.querySelectorAll('button[data-i]').forEach(b => b.onclick = () => { st.list.splice(+b.dataset.i, 1); draw(); });
+    const add = el.querySelector('.add'); if (add) add.onclick = () => input.click();
+  };
+  input.onchange = async () => {
+    for (const f of Array.from(input.files).slice(0, max - st.list.length)) { try { st.list.push(await compressImage(f)); } catch (e) { toast(e.message); } }
+    input.value = ''; draw();
+  };
+  draw(); return st;
+}
+function signaturePad(box) {
+  box.innerHTML = '<canvas></canvas><div class="ph-t">เซ็นชื่อในกรอบนี้</div><button type="button" class="clr">ล้าง</button>';
+  const cv = box.querySelector('canvas'), hint = box.querySelector('.ph-t'), ctx = cv.getContext('2d');
+  let drawing = false, empty = true, last = null, minX = 1e9, minY = 1e9, maxX = 0, maxY = 0;
+  const size = () => { const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1; cv.width = r.width * d; cv.height = r.height * d; ctx.scale(d, d); ctx.lineWidth = 2.4; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#0B2E6B'; };
+  size();
+  const pos = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  cv.addEventListener('pointerdown', e => { drawing = true; last = pos(e); cv.setPointerCapture(e.pointerId); e.preventDefault(); });
+  cv.addEventListener('pointermove', e => {
+    if (!drawing) return; const p = pos(e);
+    ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke(); last = p;
+    minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+    if (empty) { empty = false; hint.classList.add('hidden'); }
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => cv.addEventListener(t, () => { drawing = false; }));
+  box.querySelector('.clr').onclick = () => { ctx.clearRect(0, 0, cv.width, cv.height); empty = true; hint.classList.remove('hidden'); minX = minY = 1e9; maxX = maxY = 0; };
+  return {
+    isEmpty: () => empty || (maxX - minX < 15 && maxY - minY < 15),
+    toDataURL() {
+      const d = window.devicePixelRatio || 1, pad = 8;
+      const x = Math.max(0, (minX - pad) * d), y = Math.max(0, (minY - pad) * d);
+      const w = Math.min(cv.width - x, (maxX - minX + pad * 2) * d), h = Math.min(cv.height - y, (maxY - minY + pad * 2) * d);
+      const o = document.createElement('canvas'); o.width = w; o.height = h; o.getContext('2d').drawImage(cv, x, y, w, h, 0, 0, w, h);
+      return o.toDataURL('image/png');
+    }
+  };
+}
+
+/* ================= pages ================= */
+async function route() {
+  const u = new URL(location.href);
+  const p = u.searchParams.get('p') || 'form';
+  const no = u.searchParams.get('no');
+  window.scrollTo(0, 0);
+  const pages = { dash: pageDash, form: pageForm, mine: pageMine, ticket: pageTicket, accept: pageAccept, staff: pageStaff, job: pageJob, mysig: pageMySig };
+  (pages[p] || pageForm)(no);
+}
+
+/* ---------- 1) ฟอร์มแจ้งซ่อม ---------- */
+function pageForm() {
+  const L = INIT.lists, saved = LS.get('reporter', {});
+  const st = { building: saved.building || '', items: new Set() };
+  app.innerHTML = topBar('แจ้งซ่อมคอมพิวเตอร์และอุปกรณ์') + `<div class="wrap">
+    <div class="note">กรอกข้อมูลให้ครบ ระบบจะออกเลขรับแจ้งและแจ้งสถานะกลับทาง LINE · กำหนดแล้วเสร็จภายใน ${INIT.slaDays} วัน</div>
+    <div class="card"><h2><span class="n">1</span>ผู้แจ้ง</h2>
+      <label class="f">ชื่อ-นามสกุล <b>*</b></label><input type="text" id="reporter_name" value="${esc(saved.reporter_name || INIT.me.name)}">
+      <label class="f">ภาควิชา/หน่วยงาน <b>*</b></label><input type="text" id="department" value="${esc(saved.department || '')}">
+      <label class="f">หมายเลขติดต่อกลับ <b>*</b></label><input type="tel" id="phone" value="${esc(saved.phone || '')}">
+    </div>
+    <div class="card"><h2><span class="n">2</span>สถานที่</h2>
+      <label class="f">อาคาร <b>*</b></label><div class="chips" id="bld">${L.buildings.map(b => `<button type="button" class="chip${b === st.building ? ' on' : ''}" data-b="${esc(b)}">${esc(b)}</button>`).join('')}</div>
+      <div class="row"><div><label class="f">ชั้น</label><input type="text" id="floor" inputmode="numeric" value="${esc(saved.floor || '')}"></div>
+      <div><label class="f">ห้อง</label><input type="text" id="room" value="${esc(saved.room || '')}"></div></div>
+    </div>
+    <div class="card"><h2><span class="n">3</span>รายการที่ต้องการแจ้งซ่อม <b style="color:var(--bad)">*</b></h2>
+      ${L.groups.map(g => `<div class="grp"><div class="gh"><span class="gn">${g.no}.</span><span>${esc(g.name)}</span></div>
+        ${g.items.map(it => `<label class="chk"><input type="checkbox" value="${it.id}"><span>${esc(it.name)}</span></label>`).join('')}</div>`).join('')}
+      <div id="cardBox" class="hidden"><label class="f">ชื่อ-นามสกุล (เจ้าของบัตร) <b>*</b></label><input type="text" id="card_name">
+        <label class="f">เลขหลังบัตรบุคลากร/บัตรจอดรถ</label><input type="text" id="card_no"></div>
+      <label class="f">รายละเอียด/สาเหตุการแจ้งซ่อม <span id="detReq" class="hidden"><b>*</b></span></label><textarea id="detail" placeholder="เช่น เครื่องพิมพ์ห้อง 6201 กระดาษติด เปิดไม่ติด"></textarea>
+      <label class="f">รูปประกอบ (ไม่เกิน 3 รูป)</label><div class="photos" id="photos"></div>
+    </div>
+    <div class="card"><h2><span class="n">4</span>ลงชื่อผู้แจ้ง <b style="color:var(--bad)">*</b></h2>
+      <div class="sig" id="sig"></div>
+      <div class="hint">ลายเซ็นจะแสดงในใบแจ้งซ่อม ${esc(INIT.docCode)}</div>
+      <div class="hr"></div>
+      <label class="consent"><input type="checkbox" id="pdpa"><span>${esc(INIT.pdpa)}</span></label>
+    </div>
+  </div>
+  <div class="bar"><div class="in"><button class="btn" id="submit">ส่งแจ้งซ่อม</button></div></div>`;
+
+  app.querySelectorAll('#bld .chip').forEach(c => c.onclick = () => { st.building = c.dataset.b; app.querySelectorAll('#bld .chip').forEach(x => x.classList.toggle('on', x === c)); });
+  const FLAG = {}; L.groups.forEach(g => g.items.forEach(it => { FLAG[it.id] = it; }));
+  const needCard = () => [...st.items].some(i => FLAG[i] && FLAG[i].card);
+  const needDet = () => [...st.items].some(i => FLAG[i] && FLAG[i].needDetail);
+  app.querySelectorAll('.chk input').forEach(cb => cb.onchange = () => {
+    cb.checked ? st.items.add(cb.value) : st.items.delete(cb.value);
+    $('#cardBox').classList.toggle('hidden', !needCard());
+    $('#detReq').classList.toggle('hidden', !needDet());
+  });
+  const photos = photoPicker($('#photos'), 3);
+  const sig = signaturePad($('#sig'));
+  const reqId = Math.random().toString(36).slice(2) + Date.now();
+
+  $('#submit').onclick = async () => {
+    const v = id => $('#' + id).value.trim();
+    const d = { reqId, reporter_name: v('reporter_name'), department: v('department'), phone: v('phone'), building: st.building,
+      floor: v('floor'), room: v('room'), item_ids: [...st.items], detail: v('detail'), card_name: v('card_name'), card_no: v('card_no'),
+      photos: photos.list, pdpa: $('#pdpa').checked, signature: sig.isEmpty() ? '' : sig.toDataURL() };
+    const miss = !d.reporter_name ? 'ชื่อผู้แจ้ง' : !d.department ? 'ภาควิชา/หน่วยงาน' : !d.phone ? 'หมายเลขติดต่อกลับ' : !d.building ? 'อาคาร'
+      : !d.item_ids.length ? 'รายการที่ต้องการแจ้งซ่อม' : (needDet() && !d.detail) ? 'รายละเอียด/สาเหตุ' : (needCard() && !d.card_name) ? 'ชื่อเจ้าของบัตร'
+      : !d.signature ? 'ลายเซ็น' : !d.pdpa ? 'การยินยอมเก็บข้อมูล' : '';
+    if (miss) return toast('กรุณากรอก: ' + miss);
+    LS.set('reporter', { reporter_name: d.reporter_name, department: d.department, phone: d.phone, building: d.building, floor: d.floor, room: d.room });
+    const r = await run(() => api('submit', d));
+    try { if (!MOCK && liff.isInClient()) await liff.sendMessages([{ type: 'text', text: 'แจ้งซ่อม #' + r.no }]); } catch (e) { /* ไม่ได้เปิดจากแชต */ }
+    app.innerHTML = topBar('ส่งแจ้งซ่อมแล้ว') + `<div class="wrap center"><div class="done-ic">✓</div>
+      <h2 style="margin:0">เลขรับแจ้ง #${r.no}</h2><p class="muted">กำหนดแล้วเสร็จ ${esc(r.due || '')}<br>เจ้าหน้าที่จะแจ้งนัดหมายและสถานะทาง LINE</p>
+      <button class="btn" onclick="closeApp()">ปิด</button><div style="height:10px"></div>
+      <button class="btn sec" onclick="go('ticket','${r.no}')">ดูใบแจ้งซ่อม</button></div>`;
+  };
+}
+
+/* ---------- 2) งานของฉัน (ผู้แจ้ง) ---------- */
+async function pageMine() {
+  app.innerHTML = topBar('ติดตามงานแจ้งซ่อม') + '<div class="wrap" id="list"><div class="empty">กำลังโหลด...</div></div><div class="bar"><div class="in"><button class="btn" onclick="go(\'form\')">＋ แจ้งซ่อมใหม่</button></div></div>';
+  const r = await run(() => api('myTickets'));
+  $('#list').innerHTML = r.tickets.length ? r.tickets.map(tkCard).join('') : '<div class="empty">ยังไม่มีรายการแจ้งซ่อม</div>';
+}
+function tkCard(t, staffView) {
+  const action = !staffView && t.status === 'รอตรวจรับ' ? '<span class="badge s-wa">แตะเพื่อตรวจรับงาน</span>' : !staffView && t.status === 'นัดหมายแล้ว' && !t.acked ? '<span class="badge s-pln">รอคุณรับทราบนัด</span>' : '';
+  return `<a class="tk" href="javascript:void 0" onclick="go('${staffView ? 'job' : 'ticket'}','${t.no}')">
+    <div class="l1"><span class="no">#${t.no}</span>${badge(t.status)}</div>
+    <div class="l2">${esc(t.items_text || t.detail)}</div>
+    <div class="l3"><span>📍 ${esc(t.building)}${t.room ? ' ห้อง ' + esc(t.room) : ''}</span><span>🗓 ${esc(t.created)}</span>
+    ${staffView ? `<span>👤 ${esc(t.reporter_name)}</span><span>🔧 ${esc(t.assigned_name || 'ยังไม่มอบหมาย')}</span>` : ''}
+    ${t.overdue ? '<span class="od">เกินกำหนด</span>' : t.due && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0 ? '<span>กำหนดเสร็จ ' + esc(t.due) + '</span>' : ''}</div>
+    ${action ? '<div style="margin-top:8px">' + action + '</div>' : ''}</a>`;
+}
+
+/* ---------- 3) รายละเอียดใบแจ้งซ่อม (ผู้แจ้ง) ---------- */
+function ticketDetailHtml(t) {
+  const dl = rows => '<dl class="kv">' + rows.filter(r => r[1] !== undefined && r[1] !== null && r[1] !== '').map(r => `<dt>${r[0]}</dt><dd>${esc(r[1])}</dd>`).join('') + '</dl>';
+  return `<div class="card"><div class="l1" style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">ใบแจ้งซ่อม #${t.no}</h2>${badge(t.status)}</div><div class="hr"></div>
+    ${dl([['วันที่แจ้ง', t.created], ['ผู้แจ้ง', t.reporter_name], ['หน่วยงาน', t.department], ['โทร', t.phone],
+      ['สถานที่', [t.building, t.floor ? 'ชั้น ' + t.floor : '', t.room ? 'ห้อง ' + t.room : ''].filter(Boolean).join(' ')],
+      ['รายการ', t.items_text], ['รายละเอียด', t.detail], ['เจ้าของบัตร', t.card_name], ['เลขบัตร', t.card_no], ['ประเภท', t.category], ['กำหนดเสร็จ', t.due]])}
+    ${t.photos && t.photos.length ? '<label class="f">รูปประกอบ</label><div class="imgs">' + t.photos.map(s => `<img src="${s}">`).join('') + '</div>' : ''}</div>
+    ${t.assigned_name ? `<div class="card"><h2>การดำเนินงาน</h2>${dl([['ช่าง', t.assigned_name], ['นัดเข้าทำ', t.appoint], ['ผลประเมิน', t.plan ? t.plan + (t.plan_days ? ' ภายใน ' + t.plan_days + ' วัน' : '') : ''],
+      ['หมายเหตุ', t.plan_note], ['ผู้แจ้งรับทราบ', t.ack], ['สาเหตุที่พบ', t.cause], ['การแก้ไข', t.solution], ['คำแนะนำ', t.advice], ['รหัสครุภัณฑ์', t.asset_code], ['วันที่เสร็จ', t.done], ['ISO', t.iso]])}
+      ${t.after_photos && t.after_photos.length ? '<label class="f">รูปหลังดำเนินการ</label><div class="imgs">' + t.after_photos.map(s => `<img src="${s}">`).join('') + '</div>' : ''}</div>` : ''}
+    ${t.accept_result ? `<div class="card"><h2>การตรวจรับ</h2>${dl([['ผล', t.accept_result], ['เหตุผล', t.accept_reason], ['คะแนน', t.rating ? t.rating + ' / 5' : ''], ['ผู้ลงนาม', t.signer_name], ['เมื่อ', t.accepted]])}</div>` : ''}
+    <div class="card"><h2>ประวัติการดำเนินการ</h2><ul class="tl">${(t.timeline || []).map(l => `<li><div>${esc(l.action)}${l.by ? ' · ' + esc(l.by) : ''}</div><div class="ts">${esc(l.ts)}</div></li>`).join('')}</ul></div>`;
+}
+async function pageTicket(no) {
+  app.innerHTML = topBar('ใบแจ้งซ่อม #' + no, 'mine') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div><div class="bar hidden" id="bar"><div class="in" id="barIn"></div></div>';
+  const r = await run(() => api('getTicket', { no }));
+  const t = r.ticket;
+  $('#d').innerHTML = ticketDetailHtml(t);
+  const btns = [];
+  if (r.isReporter && t.status === 'นัดหมายแล้ว' && !t.acked) btns.push('<button class="btn blue" id="ack">รับทราบนัดหมาย</button>');
+  if (r.isReporter && t.status === 'รอตรวจรับ') btns.push(`<button class="btn" onclick="go('accept','${t.no}')">ตรวจรับงาน / ลงนาม</button>`);
+  if (btns.length) { $('#barIn').innerHTML = btns.join(''); $('#bar').classList.remove('hidden'); }
+  const a = $('#ack'); if (a) a.onclick = async () => { await run(() => api('ack', { no })); toast('รับทราบนัดหมายแล้ว'); pageTicket(no); };
+}
+
+/* ---------- 4) ตรวจรับงาน + ลายเซ็น ---------- */
+async function pageAccept(no) {
+  const onsite = new URL(location.href).searchParams.get('onsite') === '1';
+  app.innerHTML = topBar('ตรวจรับงาน #' + no, onsite ? 'staff' : 'mine') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div>';
+  const r = await run(() => api('getTicket', { no }));
+  const t = r.ticket;
+  if (t.status !== 'รอตรวจรับ') { $('#d').innerHTML = `<div class="note warn">ใบแจ้งซ่อมนี้อยู่ในสถานะ “${esc(t.status)}” ไม่ต้องตรวจรับ</div>` + ticketDetailHtml(t); return; }
+  const st = { result: 'pass', rating: 0 };
+  const ratings = [[5, 'ดีมาก'], [4, 'ดี'], [3, 'พอใช้'], [2, 'ปรับปรุง'], [1, 'ปรับปรุงเร่งด่วน']];
+  $('#d').innerHTML = `${onsite ? '<div class="note">ให้ผู้รับบริการ/ผู้อยู่หน้างานตรวจสอบและลงนามบนเครื่องนี้</div>' : ''}
+    <div class="card"><h2>งานที่ดำเนินการ</h2><dl class="kv"><dt>รายการ</dt><dd>${esc(t.items_text)}</dd><dt>สาเหตุที่พบ</dt><dd>${esc(t.cause)}</dd>
+      <dt>การแก้ไข</dt><dd>${esc(t.solution)}</dd>${t.advice ? `<dt>คำแนะนำ</dt><dd>${esc(t.advice)}</dd>` : ''}<dt>ช่าง</dt><dd>${esc(t.assigned_name)}</dd><dt>วันที่เสร็จ</dt><dd>${esc(t.done)}</dd></dl>
+      ${t.after_photos && t.after_photos.length ? '<label class="f">รูปหลังดำเนินการ</label><div class="imgs">' + t.after_photos.map(s => `<img src="${s}">`).join('') + '</div>' : ''}</div>
+    <div class="card"><h2>ภาควิชา/หน่วยงาน พิจารณาแล้ว เห็นว่างานที่ได้รับมอบหมาย</h2>
+      <div class="seg"><button type="button" class="on" data-r="pass">✓ แล้วเสร็จ</button><button type="button" data-r="fail">✕ ไม่แล้วเสร็จ</button></div>
+      <div id="rsBox" class="hidden"><label class="f">เพราะ <b>*</b></label><textarea id="reason" placeholder="ระบุสิ่งที่ยังไม่เรียบร้อย"></textarea></div>
+      <label class="f" style="margin-top:14px">ผู้รับบริการประเมินผู้ปฏิบัติงาน <b>*</b></label>
+      <div class="rate">${ratings.map(x => `<button type="button" data-v="${x[0]}"><b>${x[0]}</b>${x[1]}</button>`).join('')}</div></div>
+    <div class="card"><h2>ลงนาม</h2><label class="f">ชื่อผู้ลงนาม (ผู้แจ้ง/ผู้อยู่หน้างาน) <b>*</b></label>
+      <input type="text" id="signer" value="${esc(onsite ? '' : t.reporter_name)}"><label class="f">ลายเซ็น <b>*</b></label><div class="sig" id="sig"></div></div>
+    <div style="height:8px"></div>`;
+  app.insertAdjacentHTML('beforeend', '<div class="bar"><div class="in"><button class="btn" id="send">ยืนยันผลตรวจรับ</button></div></div>');
+  app.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
+    st.result = b.dataset.r; app.querySelectorAll('.seg button').forEach(x => x.classList.toggle('on', x === b));
+    b.classList.toggle('bad', st.result === 'fail'); $('#rsBox').classList.toggle('hidden', st.result !== 'fail');
+  });
+  app.querySelectorAll('.rate button').forEach(b => b.onclick = () => { st.rating = +b.dataset.v; app.querySelectorAll('.rate button').forEach(x => x.classList.toggle('on', x === b)); });
+  const sig = signaturePad($('#sig'));
+  $('#send').onclick = async () => {
+    const d = { no, onsite, result: st.result, reason: $('#reason').value.trim(), rating: st.rating, signer_name: $('#signer').value.trim(), signature: sig.isEmpty() ? '' : sig.toDataURL() };
+    const miss = st.result === 'fail' && !d.reason ? 'เหตุผลที่ไม่แล้วเสร็จ' : !d.rating ? 'คะแนนประเมิน' : !d.signer_name ? 'ชื่อผู้ลงนาม' : !d.signature ? 'ลายเซ็น' : '';
+    if (miss) return toast('กรุณากรอก: ' + miss);
+    await run(() => api('accept', d));
+    try { if (!onsite && !MOCK && liff.isInClient()) await liff.sendMessages([{ type: 'text', text: 'ตรวจรับงาน #' + no }]); } catch (e) {}
+    app.innerHTML = topBar('บันทึกผลตรวจรับแล้ว') + `<div class="wrap center"><div class="done-ic">✓</div><h2 style="margin:0">#${no} ${st.result === 'pass' ? 'ปิดงานเรียบร้อย' : 'ส่งกลับให้ช่างดำเนินการต่อ'}</h2>
+      <p class="muted">${st.result === 'pass' ? 'ระบบจัดทำใบแจ้งซ่อมฉบับลงนาม (PDF) แล้ว ขอบคุณที่ใช้บริการ' : 'เจ้าหน้าที่ได้รับแจ้งแล้ว'}</p>
+      <button class="btn" onclick="${onsite ? "go('staff')" : 'closeApp()'}">${onsite ? 'กลับหน้างานของฉัน' : 'ปิด'}</button></div>`;
+  };
+}
+
+/* ---------- 5) เจ้าหน้าที่ ---------- */
+let STAFF = null, TAB = LS.get('staffTab', 'todo');
+async function pageStaff() {
+  if (INIT.me.role === 'user') return pageRegister();
+  app.innerHTML = topBar('งานแจ้งซ่อม · เจ้าหน้าที่', 'dash') + '<div class="wrap" id="s"><div class="empty">กำลังโหลด...</div></div>';
+  const [r, dash] = await run(() => Promise.all([api('staffTickets'), api('dashboard', {})]));
+  STAFF = r;
+  const me = r.me, list = r.tickets;
+  const groups = {
+    todo: list.filter(t => t.status === 'รอมอบหมาย'),
+    work: list.filter(t => ['มอบหมายแล้ว', 'นัดหมายแล้ว', 'ไม่ผ่านตรวจรับ'].indexOf(t.status) >= 0),
+    wait: list.filter(t => t.status === 'รอตรวจรับ'),
+    done: list.filter(t => ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) >= 0)
+  };
+  const names = { todo: 'รอมอบหมาย', work: 'กำลังดำเนินการ', wait: 'รอตรวจรับ', done: 'ปิดแล้ว' };
+  const s = dash.stats;
+  $('#s').innerHTML = `${!me.hasSignature ? `<div class="note warn">ยังไม่ได้บันทึกลายเซ็นช่าง (ใช้ในใบแจ้งซ่อม) <a href="javascript:void 0" onclick="go('mysig')"><b>บันทึกตอนนี้</b></a></div>` : ''}
+    <div class="stats"><div class="stat"><b>${s.total}</b><span>งานเดือนนี้</span></div><div class="stat"><b>${s.open}</b><span>คงค้าง</span></div>
+    <div class="stat"><b>${s.isoPct === null ? '-' : s.isoPct + '%'}</b><span>ทันใน ${INIT.slaDays} วัน</span></div><div class="stat"><b>${s.avgRating === null ? '-' : s.avgRating}</b><span>ความพึงพอใจ</span></div></div>
+    <div class="tabs">${Object.keys(names).map(k => `<button class="tab${k === TAB ? ' on' : ''}" data-t="${k}">${names[k]}<i>${groups[k].length}</i></button>`).join('')}</div>
+    <div id="tl"></div><div class="center small muted" style="margin:16px 0">${esc(me.name)} · ${me.role === 'admin' ? 'หัวหน้างาน/แอดมิน' : 'ช่าง'} · <a href="javascript:void 0" onclick="go('mysig')">ลายเซ็นของฉัน</a></div>`;
+  const draw = () => { $('#tl').innerHTML = groups[TAB].length ? groups[TAB].map(t => tkCard(t, true)).join('') : '<div class="empty">ไม่มีรายการ</div>'; };
+  app.querySelectorAll('.tab').forEach(b => b.onclick = () => { TAB = b.dataset.t; LS.set('staffTab', TAB); app.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); draw(); });
+  draw();
+}
+
+function pageRegister() {
+  app.innerHTML = topBar('ลงทะเบียนเจ้าหน้าที่') + `<div class="wrap"><div class="note">หน้านี้สำหรับช่าง/หัวหน้างาน กรุณาขอรหัสลงทะเบียนจากผู้ดูแลระบบ</div>
+    <div class="card"><label class="f">รหัสลงทะเบียน <b>*</b></label><input type="text" id="code" autocapitalize="characters">
+    <label class="f">ชื่อ-นามสกุล (แสดงในใบแจ้งซ่อม) <b>*</b></label><input type="text" id="nm" value="${esc(INIT.me.name)}">
+    <label class="f">เบอร์โทร</label><input type="tel" id="ph"></div></div>
+    <div class="bar"><div class="in"><button class="btn" id="reg">ลงทะเบียน</button></div></div>`;
+  $('#reg').onclick = async () => {
+    const r = await run(() => api('register', { code: $('#code').value.trim(), name: $('#nm').value.trim(), phone: $('#ph').value.trim() }));
+    INIT.me.role = r.role; toast('ลงทะเบียนสำเร็จ'); go('mysig');
+  };
+}
+
+function pageMySig() {
+  app.innerHTML = topBar('ลายเซ็นของฉัน', 'staff') + `<div class="wrap"><div class="note">ลายเซ็นนี้จะใช้ในช่อง “ช่างผู้ปฏิบัติงาน” ของใบแจ้งซ่อมทุกใบที่คุณปิดงาน</div>
+    <div class="card"><div class="sig" id="sig"></div></div></div><div class="bar"><div class="in"><button class="btn" id="save">บันทึกลายเซ็น</button></div></div>`;
+  const sig = signaturePad($('#sig'));
+  $('#save').onclick = async () => {
+    if (sig.isEmpty()) return toast('กรุณาเซ็นชื่อ');
+    await run(() => api('saveSignature', { signature: sig.toDataURL() }));
+    INIT.me.hasSignature = true; toast('บันทึกลายเซ็นแล้ว'); go('staff');
+  };
+}
+
+async function pageJob(no) {
+  app.innerHTML = topBar('งาน #' + no, 'staff') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div>';
+  const [r, s] = await run(() => Promise.all([api('getTicket', { no }), STAFF ? Promise.resolve(STAFF) : api('staffTickets')]));
+  STAFF = s;
+  const t = r.ticket, me = s.me, isAdmin = me.role === 'admin', mine = t.assigned_uid === me.uid;
+  const can = isAdmin || mine;
+  const sections = [];
+  if (isAdmin && ['รอมอบหมาย', 'มอบหมายแล้ว', 'นัดหมายแล้ว', 'ไม่ผ่านตรวจรับ'].indexOf(t.status) >= 0) {
+    sections.push(`<div class="card"><h2>มอบหมายงาน</h2><div class="row"><select id="tech"><option value="">— เลือกช่าง —</option>
+      ${s.techs.map(x => `<option value="${x.uid}"${x.uid === t.assigned_uid ? ' selected' : ''}>${esc(x.name)}${x.role === 'admin' ? ' (แอดมิน)' : ''}</option>`).join('')}</select>
+      <button class="btn blue sm" id="assign" style="flex:none">${t.assigned_uid ? 'เปลี่ยน' : 'มอบหมาย'}</button></div></div>`);
+  }
+  if (!isAdmin && t.status === 'รอมอบหมาย') sections.push('<div class="card"><button class="btn blue" id="take">รับงานนี้</button></div>');
+  if (can && ['มอบหมายแล้ว', 'นัดหมายแล้ว'].indexOf(t.status) >= 0) {
+    sections.push(`<div class="card"><h2>นัดหมาย / ผลประเมินเบื้องต้น</h2>
+      <label class="f">ทางหน่วยงานนัดเข้าทำวันที่ <b>*</b></label><input type="date" id="appoint" value="${esc(t.appoint_iso || '')}">
+      <label class="f">ผลประเมิน <b>*</b></label><select id="plan"><option value="">— เลือก —</option><option value="now">ซ่อมได้ (ดำเนินการได้ทันที)</option>
+      <option value="wait">ซ่อมได้ รอจัดอุปกรณ์</option><option value="external">ซ่อมไม่ได้ ติดต่อบริษัทภายนอก</option></select>
+      <div id="daysBox" class="hidden"><label class="f">ภายใน (วัน)</label><input type="number" id="days" min="0" value="1"></div>
+      <label class="f">หมายเหตุ</label><input type="text" id="pnote">
+      <div style="height:10px"></div><button class="btn blue" id="savePlan">บันทึกนัดหมาย + แจ้งผู้แจ้ง</button>
+      <div class="hint">ผู้แจ้งจะได้รับข้อความพร้อมปุ่ม “รับทราบ” (ช่องผู้แจ้งรับทราบในใบแจ้งซ่อม)</div></div>`);
+  }
+  if (can && ['มอบหมายแล้ว', 'นัดหมายแล้ว', 'ไม่ผ่านตรวจรับ'].indexOf(t.status) >= 0 || (!isAdmin && t.status === 'รอมอบหมาย')) {
+    sections.push(`<div class="card"><h2>ปิดงาน (ดำเนินการเสร็จ)</h2>
+      ${t.status === 'ไม่ผ่านตรวจรับ' ? `<div class="note warn">ผู้แจ้งไม่รับงาน: ${esc(t.accept_reason)}</div>` : ''}
+      <label class="f">สาเหตุที่พบ <b>*</b></label><textarea id="cause">${esc(t.cause || '')}</textarea>
+      <label class="f">แนวทางการแก้ไข <b>*</b></label><textarea id="sol">${esc(t.solution || '')}</textarea>
+      <label class="f">คำแนะนำแก้ไขเบื้องต้น</label><input type="text" id="adv" value="${esc(t.advice || '')}">
+      <label class="f">รหัสครุภัณฑ์</label><input type="text" id="asset" value="${esc(t.asset_code || '')}">
+      <label class="f">ประเภทของปัญหา <b>*</b> <span class="small">(ระบบเลือกให้อัตโนมัติ แก้ได้)</span></label>
+      <div class="chips" id="cat">${INIT.lists.categories.map(c => `<button type="button" class="chip${c === t.category ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+      <label class="f">รูปหลังดำเนินการ</label><div class="photos" id="aph"></div>
+      <div style="height:12px"></div>
+      <button class="btn" id="doneOnsite">เสร็จแล้ว · ให้ผู้รับบริการเซ็นที่เครื่องนี้</button><div style="height:8px"></div>
+      <button class="btn sec" id="doneLine">เสร็จแล้ว · ส่งให้ผู้แจ้งตรวจรับทาง LINE</button></div>`);
+  }
+  if (can && t.status === 'รอตรวจรับ') {
+    sections.push(`<div class="card"><h2>รอตรวจรับ</h2><button class="btn" onclick="go('accept','${t.no}',{onsite:1})">ให้ผู้รับบริการเซ็นที่เครื่องนี้</button>
+      <div style="height:8px"></div><button class="btn sec" id="resend">ส่งคำขอตรวจรับทาง LINE อีกครั้ง</button></div>`);
+  }
+  if (t.pdf_url) sections.push(`<div class="card"><a class="btn sec" style="text-align:center;text-decoration:none" href="${t.pdf_url}" target="_blank">📄 เปิดใบแจ้งซ่อม PDF</a></div>`);
+  if (isAdmin && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0) sections.push('<div class="center" style="margin:6px 0 18px"><a href="javascript:void 0" id="cxl" class="small" style="color:var(--bad)">ยกเลิกใบแจ้งซ่อมนี้</a></div>');
+  $('#d').innerHTML = sections.join('') + ticketDetailHtml(t);
+
+  const on = (id, fn) => { const el = $('#' + id); if (el) el.onclick = fn; };
+  on('assign', async () => { const uid = $('#tech').value; if (!uid) return toast('เลือกช่าง'); await run(() => api('assign', { no, uid })); toast('มอบหมายแล้ว'); STAFF = null; pageJob(no); });
+  on('take', async () => { await run(() => api('take', { no })); toast('รับงานแล้ว'); STAFF = null; pageJob(no); });
+  const planSel = $('#plan'); if (planSel) planSel.onchange = () => $('#daysBox').classList.toggle('hidden', !['wait', 'external'].includes(planSel.value));
+  on('savePlan', async () => {
+    const d = { no, appoint_date: $('#appoint').value, plan: $('#plan').value, plan_days: $('#days').value, plan_note: $('#pnote').value.trim() };
+    if (!d.appoint_date || !d.plan) return toast('กรุณาระบุวันนัดและผลประเมิน');
+    await run(() => api('plan', d)); toast('บันทึกและแจ้งผู้แจ้งแล้ว'); pageJob(no);
+  });
+  let cat = t.category || '';
+  app.querySelectorAll('#cat .chip').forEach(c => c.onclick = () => { cat = c.dataset.c; app.querySelectorAll('#cat .chip').forEach(x => x.classList.toggle('on', x === c)); });
+  const aph = $('#aph') ? photoPicker($('#aph'), 3) : null;
+  const complete = async onsite => {
+    if (!me.hasSignature) { toast('กรุณาบันทึกลายเซ็นช่างก่อน'); return go('mysig'); }
+    const d = { no, onsite, cause: $('#cause').value.trim(), solution: $('#sol').value.trim(), advice: $('#adv').value.trim(), asset_code: $('#asset').value.trim(), category: cat, after_photos: aph ? aph.list : [] };
+    if (!d.cause || !d.solution || !d.category) return toast('กรุณากรอกสาเหตุ แนวทางแก้ไข และประเภท');
+    await run(() => api('complete', d)); STAFF = null;
+    if (onsite) go('accept', no, { onsite: 1 }); else { toast('ส่งคำขอตรวจรับให้ผู้แจ้งแล้ว'); pageJob(no); }
+  };
+  on('doneOnsite', () => complete(true));
+  on('doneLine', () => complete(false));
+  on('resend', async () => { await run(() => api('requestAccept', { no })); toast('ส่งแล้ว'); });
+  on('cxl', async () => { const reason = prompt('เหตุผลการยกเลิก'); if (!reason) return; await run(() => api('cancel', { no, reason })); toast('ยกเลิกแล้ว'); STAFF = null; pageJob(no); });
+}
+
+
+/* ---------- 6) ภาพรวม (Dashboard) ---------- */
+const CAT_COL = { 'CCTV & Access Control': '#7048E8', 'Network': '#F08C00', 'Software': '#2F9E44', 'Hardware': '#1C7ED6' };
+let DASH_FILTER = 'overdue';
+async function pageDash() {
+  if (INIT.me.role === 'user') return pageRegister();
+  const month = new URL(location.href).searchParams.get('m') || '';
+  app.innerHTML = topBar('ภาพรวมงานแจ้งซ่อม') + '<div class="dwrap" id="d"><div class="empty">กำลังโหลด...</div></div>';
+  const o = await run(() => api('overview', { month }));
+  const s = o.stats, p = o.prev;
+  const delta = (a, b, better, unit) => {
+    if (a === null || b === null || a === undefined || b === undefined) return '<span class="nt">ไม่มีข้อมูลเทียบ</span>';
+    const df = Math.round((a - b) * 10) / 10;
+    if (!df) return `<span class="nt">เท่ากับ${esc(o.prevLabel.split(' ')[0])}</span>`;
+    const good = better === 0 ? null : (df > 0) === (better > 0);
+    return `<span class="${good === null ? 'nt' : good ? 'up' : 'dn'}">${df > 0 ? '▲' : '▼'} ${Math.abs(df)}${unit || ''} จากเดือนก่อน</span>`;
+  };
+  const f = o.follow;
+  const fdefs = [['overdue', 'เกินกำหนด', '#FFE3E3', '#C92A2A'], ['dueToday', 'ครบกำหนดวันนี้', '#FFF4E6', '#A35200'], ['unassigned', 'รอมอบหมาย', '#E7F1FB', '#1864AB'],
+    ['waitAccept', 'รอผู้แจ้งตรวจรับ', '#E6FCF5', '#087F5B'], ['rejected', 'ไม่ผ่านตรวจรับ', '#F3F0FF', '#5F3DC4']];
+  if (!f[DASH_FILTER].length) { const firstNon = fdefs.find(x => f[x[0]].length); if (firstNon) DASH_FILTER = firstNon[0]; }
+  const maxCat = Math.max(1, ...o.categories.map(c => Math.max(c.n, c.prev)));
+  const maxB = Math.max(1, ...o.buildings.map(b => b.n));
+  const maxI = Math.max(1, ...o.topItems.map(b => b.n));
+  $('#d').innerHTML = `
+    <div class="dhead"><select id="mon">${o.months.map(m => `<option value="${m.ym}"${m.ym === o.ym ? ' selected' : ''}>${esc(m.label)}</option>`).join('')}</select>
+      <button class="btn sec sm" onclick="pageDash()">รีเฟรช</button><button class="btn blue sm" onclick="go('staff')">จัดการงานทั้งหมด →</button></div>
+    <div class="kpis">
+      <div class="kpi"><div class="lb">งานแจ้งซ่อมเดือนนี้</div><div class="v">${s.total}</div><div class="dl">${delta(s.total, p.total, 0, ' งาน')}</div></div>
+      <div class="kpi"><div class="lb">ปิดแล้ว / คงค้าง</div><div class="v">${s.closed} <span style="font-size:18px;color:var(--muted)">/ ${s.open}</span></div><div class="dl">${delta(s.open, p.open, -1, ' งานค้าง')}</div></div>
+      <div class="kpi"><div class="lb">เสร็จทันใน ${o.slaDays} วัน (เป้า ${o.kpiTarget}%)</div><div class="v" style="color:${s.isoPct === null ? 'inherit' : s.isoPct >= o.kpiTarget ? '#2B8A3E' : 'var(--bad)'}">${s.isoPct === null ? '-' : s.isoPct + '%'}</div><div class="dl">${delta(s.isoPct, p.isoPct, 1, '%')}</div></div>
+      <div class="kpi"><div class="lb">ความพึงพอใจเฉลี่ย (เต็ม 5)</div><div class="v">${s.avgRating === null ? '-' : s.avgRating}</div><div class="dl">${delta(s.avgRating, p.avgRating, 1)}</div></div>
+    </div>
+    <div class="dgrid">
+      <div class="card wide"><h2>งานที่ต้องติดตาม (ณ ตอนนี้)</h2>
+        <div class="fchips">${fdefs.map(x => `<button class="fchip${x[0] === DASH_FILTER ? ' on' : ''}" data-f="${x[0]}" style="background:${x[2]};color:${x[3]}">${x[1]}<b>${f[x[0]].length}</b></button>`).join('')}</div>
+        <div class="flist" id="fl"></div></div>
+      <div class="card wide"><h2>งานรายวัน · ${esc(o.label)}</h2>${dailyChart(o.daily, o.lastDay)}
+        <div class="legend"><span><i style="background:#1C7ED6"></i>แจ้งเข้า</span><span><i style="background:#2F9E44"></i>ทำเสร็จ</span></div></div>
+      <div class="card"><h2>ตามประเภทงาน</h2>${o.categories.map(c => `<div class="hbar"><span>${esc(c.name)}</span><div class="tr"><div class="fl" style="width:${c.n * 100 / maxCat}%;background:${c.color || CAT_COL[c.name] || '#868E96'}"></div></div><span class="n">${c.n}</span></div>`).join('')}
+        <div class="hint">เดือนก่อน: ${o.categories.map(c => esc(c.name.split(' ')[0]) + ' ' + c.prev).join(' · ')}</div></div>
+      <div class="card"><h2>ตามอาคาร</h2>${o.buildings.map(b => `<div class="hbar"><span>${esc(b.name.replace('อาคาร', ''))}</span><div class="tr"><div class="fl" style="width:${b.n * 100 / maxB}%;background:#495057"></div></div><span class="n">${b.n}</span></div>`).join('')}</div>
+      <div class="card"><h2>ตามช่างผู้ปฏิบัติงาน</h2><table class="tt"><tr><th>ช่าง</th><th>งานค้าง<br>ตอนนี้</th><th>งาน<br>เดือนนี้</th><th>ปิด<br>แล้ว</th><th>ทัน<br>${o.slaDays} วัน</th><th>คะแนน</th></tr>
+        ${o.techs.map(t => `<tr><td>${esc(t.name)}</td><td style="font-weight:700;color:${t.openNow > 3 ? 'var(--bad)' : 'inherit'}">${t.openNow}</td><td>${t.month}</td><td>${t.closed}</td><td>${t.isoPct === null ? '-' : t.isoPct + '%'}</td><td>${t.rating === null ? '-' : t.rating}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">ยังไม่มีช่าง</td></tr>'}</table></div>
+      <div class="card"><h2>รายการที่แจ้งบ่อย</h2>${o.topItems.map(b => `<div class="hbar"><span>${esc(b.name)}</span><div class="tr"><div class="fl" style="width:${b.n * 100 / maxI}%;background:#06A94D"></div></div><span class="n">${b.n}</span></div>`).join('') || '<div class="muted small">ยังไม่มีข้อมูล</div>'}</div>
+      <div class="card wide"><h2>รายงานประจำเดือน</h2>
+        ${o.isAdmin ? `<button class="btn sm" id="genRep">สร้างรายงาน ${esc(o.label)} (ข้อมูลถึงวันนี้)</button><div class="hint">ระบบสร้างรายงานให้อัตโนมัติทุกวันที่ 1 อยู่แล้ว ปุ่มนี้ใช้เมื่อต้องการตัวเลขระหว่างเดือน</div>` : ''}
+        <div class="rlist" style="margin-top:8px">${o.reports.map(r => `<a href="${r.url}" target="_blank"><span class="kd${r.kind === 'PDF' ? ' pdf' : ''}">${r.kind}</span><span style="flex:1">${esc(r.name)}</span><span class="muted small">${esc(r.updated)}</span></a>`).join('') || '<div class="muted small" style="padding:8px 0">ยังไม่มีรายงาน</div>'}</div></div>
+    </div><div style="height:16px"></div>`;
+  const drawF = () => {
+    const l = f[DASH_FILTER];
+    $('#fl').innerHTML = l.length ? l.slice(0, 12).map(t => `<a href="javascript:void 0" onclick="go('job','${t.no}')"><span><b>#${t.no}</b> ${esc(t.items_text || t.detail)} · ${esc(t.building.replace('อาคาร', ''))}</span>
+      <span>${DASH_FILTER === 'waitAccept' ? 'รอ ' + t.waitDays + ' วัน' : esc(t.assigned_name || 'ยังไม่มอบหมาย')} · ${DASH_FILTER === 'overdue' ? 'แจ้งมา ' + t.ageDays + ' วัน' : 'กำหนด ' + esc(t.due)}</span></a>`).join('') + (l.length > 12 ? `<div class="hint">และอีก ${l.length - 12} รายการ</div>` : '')
+      : '<div class="muted small" style="padding:8px 0">ไม่มีรายการ 👍</div>';
+  };
+  app.querySelectorAll('.fchip').forEach(b => b.onclick = () => { DASH_FILTER = b.dataset.f; app.querySelectorAll('.fchip').forEach(x => x.classList.toggle('on', x === b)); drawF(); });
+  drawF();
+  $('#mon').onchange = e => go('dash', null, { m: e.target.value });
+  const g = $('#genRep'); if (g) g.onclick = async () => {
+    const r = await run(() => api('generateReport', { month: o.ym }));
+    toast('สร้างรายงานแล้ว'); window.open(r.docUrl, '_blank'); pageDash();
+  };
+}
+function dailyChart(daily, lastDay) {
+  const W = Math.max(300, Math.min(1100, window.innerWidth - 60)), H = 190, pl = 26, pb = 22, n = daily.length, bw = (W - pl) / n;
+  const mx = Math.max(2, ...daily.map(d => Math.max(d.in, d.done)));
+  const y = v => H - pb - v * (H - pb - 10) / mx;
+  const ticks = [...new Set([0, Math.ceil(mx / 2), mx])];
+  let g = ticks.map(t => `<line x1="${pl}" x2="${W}" y1="${y(t)}" y2="${y(t)}" stroke="#E3E8EE"/><text x="${pl - 6}" y="${y(t) + 4}" font-size="11" text-anchor="end" fill="#6B7785">${t}</text>`).join('');
+  const w1 = Math.max(2, Math.min(14, bw * .36));
+  daily.forEach((d, i) => {
+    const cx = pl + i * bw + bw / 2;
+    if (lastDay && d.d > lastDay) { g += `<rect x="${pl + i * bw}" y="${8}" width="${bw}" height="${H - pb - 8}" fill="#F8F9FA"/>`; }
+    if (d.in) g += `<rect x="${cx - w1 - 1}" y="${y(d.in)}" width="${w1}" height="${H - pb - y(d.in)}" rx="2" fill="#1C7ED6"><title>วันที่ ${d.d}: แจ้งเข้า ${d.in}</title></rect>`;
+    if (d.done) g += `<rect x="${cx + 1}" y="${y(d.done)}" width="${w1}" height="${H - pb - y(d.done)}" rx="2" fill="#2F9E44"><title>วันที่ ${d.d}: ทำเสร็จ ${d.done}</title></rect>`;
+    if (d.d === 1 || d.d % 5 === 0 || i === n - 1) g += `<text x="${cx}" y="${H - 6}" font-size="11" text-anchor="middle" fill="#6B7785">${d.d}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">${g}</svg>`;
+}
+
+/* ================= boot ================= */
+async function boot() {
+  busy(true);
+  try {
+    if (MOCK) { await new Promise(r => { const s = document.createElement('script'); s.src = 'mock.js'; s.onload = r; document.head.appendChild(s); }); }
+    else {
+      await liff.init({ liffId: CFG.LIFF_ID });
+      if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
+      ID_TOKEN = liff.getIDToken();
+    }
+    INIT = await api('init');
+    busy(false);
+    route();
+  } catch (e) {
+    busy(false);
+    app.innerHTML = `<div class="wrap"><div class="card center"><h2>เปิดระบบไม่สำเร็จ</h2><p class="muted small">${esc(e.message || e)}</p><button class="btn" onclick="location.reload()">ลองใหม่</button></div></div>`;
+  }
+}
+</script>
+<script>
+if (new URLSearchParams(location.search).get('mock') === '1') boot();
+else { const s = document.createElement('script'); s.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js'; s.onload = boot; s.onerror = () => { document.getElementById('app').innerHTML = '<p style="padding:20px">โหลด LINE SDK ไม่ได้ กรุณาเปิดจากแอป LINE</p>'; }; document.head.appendChild(s); }
+</script>
+</body>
+</html>
