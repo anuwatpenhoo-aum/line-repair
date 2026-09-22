@@ -57,7 +57,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--pri-soft);border
 .badge{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;white-space:nowrap}
 .s-new{background:var(--warn-soft);color:var(--warn)} .s-asg{background:var(--blue-soft);color:var(--blue)}
 .s-pln{background:#F3F0FF;color:var(--violet)} .s-wa{background:#E6FCF5;color:#087F5B}
-.s-rej{background:var(--bad-soft);color:var(--bad)} .s-cls{background:#EEF1F4;color:#495057} .s-cxl{background:#F8F9FA;color:#ADB5BD}
+.s-rej{background:var(--bad-soft);color:var(--bad)} .s-pau{background:#FFF4E6;color:#A35200} .s-cls{background:#EEF1F4;color:#495057} .s-cxl{background:#F8F9FA;color:#ADB5BD}
 .tk{display:block;background:var(--card);border-radius:var(--r);padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 2px rgba(16,24,40,.05);color:inherit;text-decoration:none}
 .tk .l1{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .tk .no{font-weight:700}
@@ -100,7 +100,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--pri-soft);border
 
 .dwrap{max-width:1180px;margin:0 auto;padding:12px 12px 0}
 .dgrid{display:grid;grid-template-columns:1fr;gap:12px}
-@media(min-width:900px){.dgrid{grid-template-columns:1fr 1fr}.dgrid .wide{grid-column:1/-1}.kpis{grid-template-columns:repeat(4,1fr)!important}}
+@media(min-width:900px){.dgrid{grid-template-columns:1fr 1fr}.dgrid .wide{grid-column:1/-1}.kpis{grid-template-columns:repeat(5,1fr)!important}}
 .dgrid .card{margin:0}
 .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px}
 .kpi{background:var(--card);border-radius:var(--r);padding:12px 14px;box-shadow:0 1px 2px rgba(16,24,40,.05)}
@@ -156,7 +156,7 @@ async function api(action, data) {
 async function run(fn) { busy(true); try { return await fn(); } catch (e) { toast(e.message || String(e), 4000); throw e; } finally { busy(false); } }
 
 function statusCls(s) {
-  return { 'รอมอบหมาย': 's-new', 'มอบหมายแล้ว': 's-asg', 'นัดหมายแล้ว': 's-pln', 'รอตรวจรับ': 's-wa', 'ไม่ผ่านตรวจรับ': 's-rej', 'ดำเนินการเสร็จสิ้น': 's-cls', 'ยกเลิก': 's-cxl' }[s] || 's-cls';
+  return { 'รอมอบหมาย': 's-new', 'มอบหมายแล้ว': 's-asg', 'นัดหมายแล้ว': 's-pln', 'พักงาน': 's-pau', 'รอตรวจงาน': 's-wa', 'ส่งกลับแก้ไข': 's-rej', 'ดำเนินการเสร็จสิ้น': 's-cls', 'ยกเลิก': 's-cxl' }[s] || 's-cls';
 }
 const badge = s => `<span class="badge ${statusCls(s)}">${esc(s)}</span>`;
 function topBar(title, backTo) {
@@ -237,17 +237,45 @@ async function route() {
   const p = u.searchParams.get('p') || 'form';
   const no = u.searchParams.get('no');
   window.scrollTo(0, 0);
-  const pages = { dash: pageDash, form: pageForm, mine: pageMine, ticket: pageTicket, accept: pageAccept, staff: pageStaff, job: pageJob, mysig: pageMySig };
+  const pages = { reg: pageReg, dash: pageDash, form: pageForm, mine: pageMine, ticket: pageTicket, accept: pageAccept, staff: pageStaff, job: pageJob, mysig: pageMySig };
   (pages[p] || pageForm)(no);
 }
 
 /* ---------- 1) ฟอร์มแจ้งซ่อม ---------- */
+/* ---------- 0) ลงทะเบียนผู้แจ้ง (ครั้งแรกครั้งเดียว) ---------- */
+function pageReg() {
+  const P = INIT.me.profile || {}, first = !INIT.me.profile, L = INIT.lists;
+  let bld = P.building || '';
+  app.innerHTML = topBar(first ? 'ลงทะเบียนผู้แจ้ง' : 'ข้อมูลของฉัน', first ? '' : 'mine') + `<div class="wrap">
+    <div class="note">${first ? 'ลงทะเบียนครั้งแรกครั้งเดียว ระบบจะผูกบัญชี LINE นี้กับข้อมูลของคุณ และกรอกให้อัตโนมัติทุกครั้งที่แจ้งซ่อม' : 'แก้ไขข้อมูลที่ใช้กรอกอัตโนมัติในฟอร์มแจ้งซ่อม'}</div>
+    <div class="card"><h2>ข้อมูลผู้แจ้ง</h2>
+      <label class="f">ชื่อ-นามสกุล <b>*</b></label><input type="text" id="nm" value="${esc(P.name || INIT.me.name)}">
+      <label class="f">ภาควิชา/หน่วยงาน <b>*</b></label><input type="text" id="dep" value="${esc(P.department || '')}">
+      <label class="f">หมายเลขติดต่อกลับ <b>*</b></label><input type="tel" id="ph" value="${esc(P.phone || '')}"></div>
+    <div class="card"><h2>สถานที่ทำงานประจำ <span class="small muted">(ไม่บังคับ)</span></h2>
+      <div class="chips" id="bld">${L.buildings.map(b => `<button type="button" class="chip${b === bld ? ' on' : ''}" data-b="${esc(b)}">${esc(b)}</button>`).join('')}</div>
+      <div class="row"><div><label class="f">ชั้น</label><input type="text" id="fl" inputmode="numeric" value="${esc(P.floor || '')}"></div>
+      <div><label class="f">ห้อง</label><input type="text" id="rm" value="${esc(P.room || '')}"></div></div></div>
+    ${first ? `<div class="card"><label class="consent"><input type="checkbox" id="pdpa"><span>${esc(INIT.pdpa)}</span></label></div>` : ''}
+  </div><div class="bar"><div class="in"><button class="btn" id="save">${first ? 'ลงทะเบียน แล้วไปแจ้งซ่อม' : 'บันทึก'}</button></div></div>`;
+  app.querySelectorAll('#bld .chip').forEach(c => c.onclick = () => { bld = bld === c.dataset.b ? '' : c.dataset.b; app.querySelectorAll('#bld .chip').forEach(x => x.classList.toggle('on', x.dataset.b === bld)); });
+  $('#save').onclick = async () => {
+    const d = { name: $('#nm').value.trim(), department: $('#dep').value.trim(), phone: $('#ph').value.trim(), building: bld, floor: $('#fl').value.trim(), room: $('#rm').value.trim(), pdpa: first ? $('#pdpa').checked : true };
+    const miss = !d.name ? 'ชื่อ-นามสกุล' : !d.department ? 'ภาควิชา/หน่วยงาน' : !d.phone ? 'หมายเลขติดต่อกลับ' : !d.pdpa ? 'การยินยอมเก็บข้อมูล' : '';
+    if (miss) return toast('กรุณากรอก: ' + miss);
+    const r = await run(() => api('saveProfile', d));
+    INIT.me.profile = r.profile; toast(first ? 'ลงทะเบียนสำเร็จ' : 'บันทึกแล้ว'); go(first ? 'form' : 'mine');
+  };
+}
+
 function pageForm() {
-  const L = INIT.lists, saved = LS.get('reporter', {});
+  if (!INIT.me.profile) return pageReg();
+  const L = INIT.lists, P = INIT.me.profile, last = LS.get('reporter', {});
+  const saved = { reporter_name: P.name, department: P.department, phone: P.phone, building: last.building || P.building, floor: last.floor || P.floor, room: last.room || P.room };
   const st = { building: saved.building || '', items: new Set() };
   app.innerHTML = topBar('แจ้งซ่อมคอมพิวเตอร์และอุปกรณ์') + `<div class="wrap">
     <div class="note">กรอกข้อมูลให้ครบ ระบบจะออกเลขรับแจ้งและแจ้งสถานะกลับทาง LINE · กำหนดแล้วเสร็จภายใน ${INIT.slaDays} วัน</div>
-    <div class="card"><h2><span class="n">1</span>ผู้แจ้ง</h2>
+    <div class="card"><h2><span class="n">1</span>ผู้แจ้ง <a href="javascript:void 0" onclick="go('reg')" class="small" style="margin-left:auto;font-weight:400">แก้ข้อมูลของฉัน</a></h2>
       <label class="f">ชื่อ-นามสกุล <b>*</b></label><input type="text" id="reporter_name" value="${esc(saved.reporter_name || INIT.me.name)}">
       <label class="f">ภาควิชา/หน่วยงาน <b>*</b></label><input type="text" id="department" value="${esc(saved.department || '')}">
       <label class="f">หมายเลขติดต่อกลับ <b>*</b></label><input type="tel" id="phone" value="${esc(saved.phone || '')}">
@@ -268,8 +296,6 @@ function pageForm() {
     <div class="card"><h2><span class="n">4</span>ลงชื่อผู้แจ้ง <b style="color:var(--bad)">*</b></h2>
       <div class="sig" id="sig"></div>
       <div class="hint">ลายเซ็นจะแสดงในใบแจ้งซ่อม ${esc(INIT.docCode)}</div>
-      <div class="hr"></div>
-      <label class="consent"><input type="checkbox" id="pdpa"><span>${esc(INIT.pdpa)}</span></label>
     </div>
   </div>
   <div class="bar"><div class="in"><button class="btn" id="submit">ส่งแจ้งซ่อม</button></div></div>`;
@@ -291,12 +317,12 @@ function pageForm() {
     const v = id => $('#' + id).value.trim();
     const d = { reqId, reporter_name: v('reporter_name'), department: v('department'), phone: v('phone'), building: st.building,
       floor: v('floor'), room: v('room'), item_ids: [...st.items], detail: v('detail'), card_name: v('card_name'), card_no: v('card_no'),
-      photos: photos.list, pdpa: $('#pdpa').checked, signature: sig.isEmpty() ? '' : sig.toDataURL() };
+      photos: photos.list, pdpa: true, signature: sig.isEmpty() ? '' : sig.toDataURL() };
     const miss = !d.reporter_name ? 'ชื่อผู้แจ้ง' : !d.department ? 'ภาควิชา/หน่วยงาน' : !d.phone ? 'หมายเลขติดต่อกลับ' : !d.building ? 'อาคาร'
       : !d.item_ids.length ? 'รายการที่ต้องการแจ้งซ่อม' : (needDet() && !d.detail) ? 'รายละเอียด/สาเหตุ' : (needCard() && !d.card_name) ? 'ชื่อเจ้าของบัตร'
-      : !d.signature ? 'ลายเซ็น' : !d.pdpa ? 'การยินยอมเก็บข้อมูล' : '';
+      : !d.signature ? 'ลายเซ็น' : '';
     if (miss) return toast('กรุณากรอก: ' + miss);
-    LS.set('reporter', { reporter_name: d.reporter_name, department: d.department, phone: d.phone, building: d.building, floor: d.floor, room: d.room });
+    LS.set('reporter', { building: d.building, floor: d.floor, room: d.room });
     const r = await run(() => api('submit', d));
     try { if (!MOCK && liff.isInClient()) await liff.sendMessages([{ type: 'text', text: 'แจ้งซ่อม #' + r.no }]); } catch (e) { /* ไม่ได้เปิดจากแชต */ }
     app.innerHTML = topBar('ส่งแจ้งซ่อมแล้ว') + `<div class="wrap center"><div class="done-ic">✓</div>
@@ -308,17 +334,18 @@ function pageForm() {
 
 /* ---------- 2) งานของฉัน (ผู้แจ้ง) ---------- */
 async function pageMine() {
-  app.innerHTML = topBar('ติดตามงานแจ้งซ่อม') + '<div class="wrap" id="list"><div class="empty">กำลังโหลด...</div></div><div class="bar"><div class="in"><button class="btn" onclick="go(\'form\')">＋ แจ้งซ่อมใหม่</button></div></div>';
+  app.innerHTML = topBar('ติดตามงานแจ้งซ่อม') + '<div class="wrap" id="list"><div class="empty">กำลังโหลด...</div></div><div class="center small" style="margin:6px 0 14px"><a href="javascript:void 0" onclick="go(\'reg\')">👤 ข้อมูลของฉัน</a></div><div class="bar"><div class="in"><button class="btn" onclick="go(\'form\')">＋ แจ้งซ่อมใหม่</button></div></div>';
   const r = await run(() => api('myTickets'));
   $('#list').innerHTML = r.tickets.length ? r.tickets.map(tkCard).join('') : '<div class="empty">ยังไม่มีรายการแจ้งซ่อม</div>';
 }
 function tkCard(t, staffView) {
-  const action = !staffView && t.status === 'รอตรวจรับ' ? '<span class="badge s-wa">แตะเพื่อตรวจรับงาน</span>' : !staffView && t.status === 'นัดหมายแล้ว' && !t.acked ? '<span class="badge s-pln">รอคุณรับทราบนัด</span>' : '';
+  const action = !staffView && t.status === 'รอตรวจงาน' ? '<span class="badge s-wa">แตะเพื่อตรวจงาน</span>' : !staffView && t.status === 'นัดหมายแล้ว' && !t.acked ? '<span class="badge s-pln">รอคุณรับทราบนัด</span>' : '';
   return `<a class="tk" href="javascript:void 0" onclick="go('${staffView ? 'job' : 'ticket'}','${t.no}')">
     <div class="l1"><span class="no">#${t.no}</span>${badge(t.status)}</div>
     <div class="l2">${esc(t.items_text || t.detail)}</div>
     <div class="l3"><span>📍 ${esc(t.building)}${t.room ? ' ห้อง ' + esc(t.room) : ''}</span><span>🗓 ${esc(t.created)}</span>
     ${staffView ? `<span>👤 ${esc(t.reporter_name)}</span><span>🔧 ${esc(t.assigned_name || 'ยังไม่มอบหมาย')}</span>` : ''}
+    ${t.pause_reason ? '<span>⏸ ' + esc(t.pause_reason) + '</span>' : ''}${t.rework ? '<span class="od" style="background:#F3F0FF;color:#5F3DC4">งานแก้ ครั้งที่ ' + t.reject_count + '</span>' : ''}
     ${t.overdue ? '<span class="od">เกินกำหนด</span>' : t.due && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0 ? '<span>กำหนดเสร็จ ' + esc(t.due) + '</span>' : ''}</div>
     ${action ? '<div style="margin-top:8px">' + action + '</div>' : ''}</a>`;
 }
@@ -332,9 +359,9 @@ function ticketDetailHtml(t) {
       ['รายการ', t.items_text], ['รายละเอียด', t.detail], ['เจ้าของบัตร', t.card_name], ['เลขบัตร', t.card_no], ['ประเภท', t.category], ['กำหนดเสร็จ', t.due]])}
     ${t.photos && t.photos.length ? '<label class="f">รูปประกอบ</label><div class="imgs">' + t.photos.map(s => `<img src="${s}">`).join('') + '</div>' : ''}</div>
     ${t.assigned_name ? `<div class="card"><h2>การดำเนินงาน</h2>${dl([['ช่าง', t.assigned_name], ['นัดเข้าทำ', t.appoint], ['ผลประเมิน', t.plan ? t.plan + (t.plan_days ? ' ภายใน ' + t.plan_days + ' วัน' : '') : ''],
-      ['หมายเหตุ', t.plan_note], ['ผู้แจ้งรับทราบ', t.ack], ['สาเหตุที่พบ', t.cause], ['การแก้ไข', t.solution], ['คำแนะนำ', t.advice], ['รหัสครุภัณฑ์', t.asset_code], ['วันที่เสร็จ', t.done], ['ISO', t.iso]])}
+      ['หมายเหตุ', t.plan_note], ['ผู้แจ้งรับทราบ', t.ack], ['สาเหตุที่พบ', t.cause], ['การแก้ไข', t.solution], ['คำแนะนำ', t.advice], ['รหัสครุภัณฑ์', t.asset_code], ['วันที่เสร็จ', t.done], ['วันพักงาน', t.pause_days ? t.pause_days + ' วัน (ไม่นับ KPI)' : ''], ['ISO งานใหม่', t.iso], ['ISO งานแก้', t.rework_iso]])}
       ${t.after_photos && t.after_photos.length ? '<label class="f">รูปหลังดำเนินการ</label><div class="imgs">' + t.after_photos.map(s => `<img src="${s}">`).join('') + '</div>' : ''}</div>` : ''}
-    ${t.accept_result ? `<div class="card"><h2>การตรวจรับ</h2>${dl([['ผล', t.accept_result], ['เหตุผล', t.accept_reason], ['คะแนน', t.rating ? t.rating + ' / 5' : ''], ['ผู้ลงนาม', t.signer_name], ['เมื่อ', t.accepted]])}</div>` : ''}
+    ${t.accept_result ? `<div class="card"><h2>การตรวจงาน</h2>${dl([['ผล', t.accept_result === 'แล้วเสร็จ' ? 'ผ่าน' : 'ส่งกลับแก้ไข'], ['เหตุผล', t.accept_reason], ['คะแนน', t.rating ? t.rating + ' / 5' : ''], ['ผู้ลงนาม', t.signer_name], ['เมื่อ', t.accepted]])}</div>` : ''}
     <div class="card"><h2>ประวัติการดำเนินการ</h2><ul class="tl">${(t.timeline || []).map(l => `<li><div>${esc(l.action)}${l.by ? ' · ' + esc(l.by) : ''}</div><div class="ts">${esc(l.ts)}</div></li>`).join('')}</ul></div>`;
 }
 async function pageTicket(no) {
@@ -344,7 +371,7 @@ async function pageTicket(no) {
   $('#d').innerHTML = ticketDetailHtml(t);
   const btns = [];
   if (r.isReporter && t.status === 'นัดหมายแล้ว' && !t.acked) btns.push('<button class="btn blue" id="ack">รับทราบนัดหมาย</button>');
-  if (r.isReporter && t.status === 'รอตรวจรับ') btns.push(`<button class="btn" onclick="go('accept','${t.no}')">ตรวจรับงาน / ลงนาม</button>`);
+  if (r.isReporter && t.status === 'รอตรวจงาน') btns.push(`<button class="btn" onclick="go('accept','${t.no}')">ตรวจงาน (ผ่าน / แก้ไข)</button>`);
   if (btns.length) { $('#barIn').innerHTML = btns.join(''); $('#bar').classList.remove('hidden'); }
   const a = $('#ack'); if (a) a.onclick = async () => { await run(() => api('ack', { no })); toast('รับทราบนัดหมายแล้ว'); pageTicket(no); };
 }
@@ -352,10 +379,10 @@ async function pageTicket(no) {
 /* ---------- 4) ตรวจรับงาน + ลายเซ็น ---------- */
 async function pageAccept(no) {
   const onsite = new URL(location.href).searchParams.get('onsite') === '1';
-  app.innerHTML = topBar('ตรวจรับงาน #' + no, onsite ? 'staff' : 'mine') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div>';
+  app.innerHTML = topBar('ตรวจงาน #' + no, onsite ? 'staff' : 'mine') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div>';
   const r = await run(() => api('getTicket', { no }));
   const t = r.ticket;
-  if (t.status !== 'รอตรวจรับ') { $('#d').innerHTML = `<div class="note warn">ใบแจ้งซ่อมนี้อยู่ในสถานะ “${esc(t.status)}” ไม่ต้องตรวจรับ</div>` + ticketDetailHtml(t); return; }
+  if (t.status !== 'รอตรวจงาน') { $('#d').innerHTML = `<div class="note warn">ใบแจ้งซ่อมนี้อยู่ในสถานะ “${esc(t.status)}” ไม่ต้องตรวจงาน</div>` + ticketDetailHtml(t); return; }
   const st = { result: 'pass', rating: 0 };
   const ratings = [[5, 'ดีมาก'], [4, 'ดี'], [3, 'พอใช้'], [2, 'ปรับปรุง'], [1, 'ปรับปรุงเร่งด่วน']];
   $('#d').innerHTML = `${onsite ? '<div class="note">ให้ผู้รับบริการ/ผู้อยู่หน้างานตรวจสอบและลงนามบนเครื่องนี้</div>' : ''}
@@ -363,14 +390,14 @@ async function pageAccept(no) {
       <dt>การแก้ไข</dt><dd>${esc(t.solution)}</dd>${t.advice ? `<dt>คำแนะนำ</dt><dd>${esc(t.advice)}</dd>` : ''}<dt>ช่าง</dt><dd>${esc(t.assigned_name)}</dd><dt>วันที่เสร็จ</dt><dd>${esc(t.done)}</dd></dl>
       ${t.after_photos && t.after_photos.length ? '<label class="f">รูปหลังดำเนินการ</label><div class="imgs">' + t.after_photos.map(s => `<img src="${s}">`).join('') + '</div>' : ''}</div>
     <div class="card"><h2>ภาควิชา/หน่วยงาน พิจารณาแล้ว เห็นว่างานที่ได้รับมอบหมาย</h2>
-      <div class="seg"><button type="button" class="on" data-r="pass">✓ แล้วเสร็จ</button><button type="button" data-r="fail">✕ ไม่แล้วเสร็จ</button></div>
-      <div id="rsBox" class="hidden"><label class="f">เพราะ <b>*</b></label><textarea id="reason" placeholder="ระบุสิ่งที่ยังไม่เรียบร้อย"></textarea></div>
+      <div class="seg"><button type="button" class="on" data-r="pass">✓ ผ่าน</button><button type="button" data-r="fail">✎ แก้ไข</button></div>
+      <div id="rsBox" class="hidden"><label class="f">สิ่งที่ต้องแก้ไข <b>*</b></label><textarea id="reason" placeholder="ระบุสิ่งที่ยังไม่เรียบร้อย ช่างจะแก้ไขภายใน ${INIT.slaDays} วัน"></textarea></div>
       <label class="f" style="margin-top:14px">ผู้รับบริการประเมินผู้ปฏิบัติงาน <b>*</b></label>
       <div class="rate">${ratings.map(x => `<button type="button" data-v="${x[0]}"><b>${x[0]}</b>${x[1]}</button>`).join('')}</div></div>
     <div class="card"><h2>ลงนาม</h2><label class="f">ชื่อผู้ลงนาม (ผู้แจ้ง/ผู้อยู่หน้างาน) <b>*</b></label>
       <input type="text" id="signer" value="${esc(onsite ? '' : t.reporter_name)}"><label class="f">ลายเซ็น <b>*</b></label><div class="sig" id="sig"></div></div>
     <div style="height:8px"></div>`;
-  app.insertAdjacentHTML('beforeend', '<div class="bar"><div class="in"><button class="btn" id="send">ยืนยันผลตรวจรับ</button></div></div>');
+  app.insertAdjacentHTML('beforeend', '<div class="bar"><div class="in"><button class="btn" id="send">ยืนยันผลตรวจงาน</button></div></div>');
   app.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
     st.result = b.dataset.r; app.querySelectorAll('.seg button').forEach(x => x.classList.toggle('on', x === b));
     b.classList.toggle('bad', st.result === 'fail'); $('#rsBox').classList.toggle('hidden', st.result !== 'fail');
@@ -379,12 +406,12 @@ async function pageAccept(no) {
   const sig = signaturePad($('#sig'));
   $('#send').onclick = async () => {
     const d = { no, onsite, result: st.result, reason: $('#reason').value.trim(), rating: st.rating, signer_name: $('#signer').value.trim(), signature: sig.isEmpty() ? '' : sig.toDataURL() };
-    const miss = st.result === 'fail' && !d.reason ? 'เหตุผลที่ไม่แล้วเสร็จ' : !d.rating ? 'คะแนนประเมิน' : !d.signer_name ? 'ชื่อผู้ลงนาม' : !d.signature ? 'ลายเซ็น' : '';
+    const miss = st.result === 'fail' && !d.reason ? 'สิ่งที่ต้องแก้ไข' : !d.rating ? 'คะแนนประเมิน' : !d.signer_name ? 'ชื่อผู้ลงนาม' : !d.signature ? 'ลายเซ็น' : '';
     if (miss) return toast('กรุณากรอก: ' + miss);
     await run(() => api('accept', d));
-    try { if (!onsite && !MOCK && liff.isInClient()) await liff.sendMessages([{ type: 'text', text: 'ตรวจรับงาน #' + no }]); } catch (e) {}
-    app.innerHTML = topBar('บันทึกผลตรวจรับแล้ว') + `<div class="wrap center"><div class="done-ic">✓</div><h2 style="margin:0">#${no} ${st.result === 'pass' ? 'ปิดงานเรียบร้อย' : 'ส่งกลับให้ช่างดำเนินการต่อ'}</h2>
-      <p class="muted">${st.result === 'pass' ? 'ระบบจัดทำใบแจ้งซ่อมฉบับลงนาม (PDF) แล้ว ขอบคุณที่ใช้บริการ' : 'เจ้าหน้าที่ได้รับแจ้งแล้ว'}</p>
+    try { if (!onsite && !MOCK && liff.isInClient()) await liff.sendMessages([{ type: 'text', text: 'ตรวจงาน #' + no }]); } catch (e) {}
+    app.innerHTML = topBar('บันทึกผลตรวจงานแล้ว') + `<div class="wrap center"><div class="done-ic">✓</div><h2 style="margin:0">#${no} ${st.result === 'pass' ? 'ผ่าน · ปิดงานเรียบร้อย' : 'ส่งกลับให้ช่างแก้ไขแล้ว'}</h2>
+      <p class="muted">${st.result === 'pass' ? 'ระบบจัดทำใบแจ้งซ่อมฉบับลงนาม (PDF) แล้ว ขอบคุณที่ใช้บริการ' : 'ช่างได้รับแจ้งแล้ว และจะแก้ไขภายใน ' + INIT.slaDays + ' วัน'}</p>
       <button class="btn" onclick="${onsite ? "go('staff')" : 'closeApp()'}">${onsite ? 'กลับหน้างานของฉัน' : 'ปิด'}</button></div>`;
   };
 }
@@ -399,11 +426,11 @@ async function pageStaff() {
   const me = r.me, list = r.tickets;
   const groups = {
     todo: list.filter(t => t.status === 'รอมอบหมาย'),
-    work: list.filter(t => ['มอบหมายแล้ว', 'นัดหมายแล้ว', 'ไม่ผ่านตรวจรับ'].indexOf(t.status) >= 0),
-    wait: list.filter(t => t.status === 'รอตรวจรับ'),
+    work: list.filter(t => ['มอบหมายแล้ว', 'นัดหมายแล้ว', 'พักงาน', 'ส่งกลับแก้ไข'].indexOf(t.status) >= 0),
+    wait: list.filter(t => t.status === 'รอตรวจงาน'),
     done: list.filter(t => ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) >= 0)
   };
-  const names = { todo: 'รอมอบหมาย', work: 'กำลังดำเนินการ', wait: 'รอตรวจรับ', done: 'ปิดแล้ว' };
+  const names = { todo: 'รอมอบหมาย', work: 'กำลังดำเนินการ', wait: 'รอตรวจงาน', done: 'ปิดแล้ว' };
   const s = dash.stats;
   $('#s').innerHTML = `${!me.hasSignature ? `<div class="note warn">ยังไม่ได้บันทึกลายเซ็นช่าง (ใช้ในใบแจ้งซ่อม) <a href="javascript:void 0" onclick="go('mysig')"><b>บันทึกตอนนี้</b></a></div>` : ''}
     <div class="stats"><div class="stat"><b>${s.total}</b><span>งานเดือนนี้</span></div><div class="stat"><b>${s.open}</b><span>คงค้าง</span></div>
@@ -445,7 +472,7 @@ async function pageJob(no) {
   const t = r.ticket, me = s.me, isAdmin = me.role === 'admin', mine = t.assigned_uid === me.uid;
   const can = isAdmin || mine;
   const sections = [];
-  if (isAdmin && ['รอมอบหมาย', 'มอบหมายแล้ว', 'นัดหมายแล้ว', 'ไม่ผ่านตรวจรับ'].indexOf(t.status) >= 0) {
+  if (isAdmin && ['รอมอบหมาย', 'มอบหมายแล้ว', 'นัดหมายแล้ว', 'ส่งกลับแก้ไข'].indexOf(t.status) >= 0) {
     sections.push(`<div class="card"><h2>มอบหมายงาน</h2><div class="row"><select id="tech"><option value="">— เลือกช่าง —</option>
       ${s.techs.map(x => `<option value="${x.uid}"${x.uid === t.assigned_uid ? ' selected' : ''}>${esc(x.name)}${x.role === 'admin' ? ' (แอดมิน)' : ''}</option>`).join('')}</select>
       <button class="btn blue sm" id="assign" style="flex:none">${t.assigned_uid ? 'เปลี่ยน' : 'มอบหมาย'}</button></div></div>`);
@@ -461,11 +488,27 @@ async function pageJob(no) {
       <div style="height:10px"></div><button class="btn blue" id="savePlan">บันทึกนัดหมาย + แจ้งผู้แจ้ง</button>
       <div class="hint">ผู้แจ้งจะได้รับข้อความพร้อมปุ่ม “รับทราบ” (ช่องผู้แจ้งรับทราบในใบแจ้งซ่อม)</div></div>`);
   }
-  if (can && ['มอบหมายแล้ว', 'นัดหมายแล้ว', 'ไม่ผ่านตรวจรับ'].indexOf(t.status) >= 0 || (!isAdmin && t.status === 'รอมอบหมาย')) {
-    sections.push(`<div class="card"><h2>ปิดงาน (ดำเนินการเสร็จ)</h2>
-      ${t.status === 'ไม่ผ่านตรวจรับ' ? `<div class="note warn">ผู้แจ้งไม่รับงาน: ${esc(t.accept_reason)}</div>` : ''}
-      <label class="f">สาเหตุที่พบ <b>*</b></label><textarea id="cause">${esc(t.cause || '')}</textarea>
-      <label class="f">แนวทางการแก้ไข <b>*</b></label><textarea id="sol">${esc(t.solution || '')}</textarea>
+  const O = INIT.lists.options || { cause: [], solution: [], pause: [] };
+  const optSel = (id, list, cur) => {
+    const known = list.indexOf(cur) >= 0;
+    return `<select id="${id}"><option value="">— เลือก —</option>${list.map(x => `<option${x === cur ? ' selected' : ''}>${esc(x)}</option>`).join('')}<option value="__other"${cur && !known ? ' selected' : ''}>อื่นๆ (พิมพ์เอง)</option></select>
+      <textarea id="${id}_o" class="${cur && !known ? '' : 'hidden'}" placeholder="ระบุ">${cur && !known ? esc(cur) : ''}</textarea>`;
+  };
+  if (can && t.status === 'พักงาน') {
+    sections.push(`<div class="card"><h2>⏸ พักงานอยู่ (หยุดนับเวลา KPI)</h2><div class="note warn">เหตุผล: ${esc(t.pause_reason)} · ตั้งแต่ ${esc(t.paused)}</div>
+      <button class="btn blue" id="resume">▶ ทำงานต่อ</button><div class="hint">วันที่พักจะถูกบวกเข้าไปในกำหนดเสร็จให้อัตโนมัติ</div></div>`);
+  }
+  if (can && ['มอบหมายแล้ว', 'นัดหมายแล้ว', 'ส่งกลับแก้ไข'].indexOf(t.status) >= 0) {
+    sections.push(`<div class="card"><h2>พักงาน (รออะไหล่ / บริษัทภายนอก)</h2>
+      <label class="f">เหตุผล <b>*</b></label>${optSel('pr', O.pause, '')}
+      <div style="height:10px"></div><button class="btn sec" id="pause">⏸ พักงาน · หยุดนับเวลา</button>
+      <div class="hint">ผู้แจ้งจะได้รับแจ้งเหตุผลทาง LINE · ระหว่างพักไม่นับเป็นวันทำงานใน KPI</div></div>`);
+  }
+  if (can && ['มอบหมายแล้ว', 'นัดหมายแล้ว', 'พักงาน', 'ส่งกลับแก้ไข'].indexOf(t.status) >= 0 || (!isAdmin && t.status === 'รอมอบหมาย')) {
+    sections.push(`<div class="card"><h2>${t.rework ? 'ปิดงานแก้ (ครั้งที่ ' + t.reject_count + ')' : 'ปิดงาน (ดำเนินการเสร็จ)'}</h2>
+      ${t.status === 'ส่งกลับแก้ไข' ? `<div class="note warn">ผู้แจ้งขอให้แก้ไข: ${esc(t.accept_reason)} · ต้องแก้เสร็จภายใน ${esc(t.due)}</div>` : ''}
+      <label class="f">สาเหตุที่พบ <b>*</b></label>${optSel('cause', O.cause, t.cause || '')}
+      <label class="f">แนวทางการแก้ไข <b>*</b></label>${optSel('sol', O.solution, t.solution || '')}
       <label class="f">คำแนะนำแก้ไขเบื้องต้น</label><input type="text" id="adv" value="${esc(t.advice || '')}">
       <label class="f">รหัสครุภัณฑ์</label><input type="text" id="asset" value="${esc(t.asset_code || '')}">
       <label class="f">ประเภทของปัญหา <b>*</b> <span class="small">(ระบบเลือกให้อัตโนมัติ แก้ได้)</span></label>
@@ -473,11 +516,11 @@ async function pageJob(no) {
       <label class="f">รูปหลังดำเนินการ</label><div class="photos" id="aph"></div>
       <div style="height:12px"></div>
       <button class="btn" id="doneOnsite">เสร็จแล้ว · ให้ผู้รับบริการเซ็นที่เครื่องนี้</button><div style="height:8px"></div>
-      <button class="btn sec" id="doneLine">เสร็จแล้ว · ส่งให้ผู้แจ้งตรวจรับทาง LINE</button></div>`);
+      <button class="btn sec" id="doneLine">เสร็จแล้ว · ส่งให้ผู้แจ้งตรวจงานทาง LINE</button></div>`);
   }
-  if (can && t.status === 'รอตรวจรับ') {
-    sections.push(`<div class="card"><h2>รอตรวจรับ</h2><button class="btn" onclick="go('accept','${t.no}',{onsite:1})">ให้ผู้รับบริการเซ็นที่เครื่องนี้</button>
-      <div style="height:8px"></div><button class="btn sec" id="resend">ส่งคำขอตรวจรับทาง LINE อีกครั้ง</button></div>`);
+  if (can && t.status === 'รอตรวจงาน') {
+    sections.push(`<div class="card"><h2>รอตรวจงาน</h2><button class="btn" onclick="go('accept','${t.no}',{onsite:1})">ให้ผู้รับบริการเซ็นที่เครื่องนี้</button>
+      <div style="height:8px"></div><button class="btn sec" id="resend">ส่งคำขอตรวจงานทาง LINE อีกครั้ง</button></div>`);
   }
   if (t.pdf_url) sections.push(`<div class="card"><a class="btn sec" style="text-align:center;text-decoration:none" href="${t.pdf_url}" target="_blank">📄 เปิดใบแจ้งซ่อม PDF</a></div>`);
   if (isAdmin && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0) sections.push('<div class="center" style="margin:6px 0 18px"><a href="javascript:void 0" id="cxl" class="small" style="color:var(--bad)">ยกเลิกใบแจ้งซ่อมนี้</a></div>');
@@ -485,6 +528,10 @@ async function pageJob(no) {
 
   const on = (id, fn) => { const el = $('#' + id); if (el) el.onclick = fn; };
   on('assign', async () => { const uid = $('#tech').value; if (!uid) return toast('เลือกช่าง'); await run(() => api('assign', { no, uid })); toast('มอบหมายแล้ว'); STAFF = null; pageJob(no); });
+  app.querySelectorAll('select[id]').forEach(sl => { const o = $('#' + sl.id + '_o'); if (o) sl.onchange = () => o.classList.toggle('hidden', sl.value !== '__other'); });
+  const pick = id => { const v = $('#' + id).value; return v === '__other' ? $('#' + id + '_o').value.trim() : v; };
+  on('pause', async () => { const reason = pick('pr'); if (!reason) return toast('กรุณาเลือกเหตุผล'); await run(() => api('pause', { no, reason })); toast('พักงานแล้ว'); STAFF = null; pageJob(no); });
+  on('resume', async () => { const r = await run(() => api('resume', { no })); toast('ทำงานต่อแล้ว · กำหนดเสร็จ ' + r.ticket.due); STAFF = null; pageJob(no); });
   on('take', async () => { await run(() => api('take', { no })); toast('รับงานแล้ว'); STAFF = null; pageJob(no); });
   const planSel = $('#plan'); if (planSel) planSel.onchange = () => $('#daysBox').classList.toggle('hidden', !['wait', 'external'].includes(planSel.value));
   on('savePlan', async () => {
@@ -497,10 +544,10 @@ async function pageJob(no) {
   const aph = $('#aph') ? photoPicker($('#aph'), 3) : null;
   const complete = async onsite => {
     if (!me.hasSignature) { toast('กรุณาบันทึกลายเซ็นช่างก่อน'); return go('mysig'); }
-    const d = { no, onsite, cause: $('#cause').value.trim(), solution: $('#sol').value.trim(), advice: $('#adv').value.trim(), asset_code: $('#asset').value.trim(), category: cat, after_photos: aph ? aph.list : [] };
+    const d = { no, onsite, cause: pick('cause'), solution: pick('sol'), advice: $('#adv').value.trim(), asset_code: $('#asset').value.trim(), category: cat, after_photos: aph ? aph.list : [] };
     if (!d.cause || !d.solution || !d.category) return toast('กรุณากรอกสาเหตุ แนวทางแก้ไข และประเภท');
     await run(() => api('complete', d)); STAFF = null;
-    if (onsite) go('accept', no, { onsite: 1 }); else { toast('ส่งคำขอตรวจรับให้ผู้แจ้งแล้ว'); pageJob(no); }
+    if (onsite) go('accept', no, { onsite: 1 }); else { toast('ส่งคำขอตรวจงานให้ผู้แจ้งแล้ว'); pageJob(no); }
   };
   on('doneOnsite', () => complete(true));
   on('doneLine', () => complete(false));
@@ -527,7 +574,7 @@ async function pageDash() {
   };
   const f = o.follow;
   const fdefs = [['overdue', 'เกินกำหนด', '#FFE3E3', '#C92A2A'], ['dueToday', 'ครบกำหนดวันนี้', '#FFF4E6', '#A35200'], ['unassigned', 'รอมอบหมาย', '#E7F1FB', '#1864AB'],
-    ['waitAccept', 'รอผู้แจ้งตรวจรับ', '#E6FCF5', '#087F5B'], ['rejected', 'ไม่ผ่านตรวจรับ', '#F3F0FF', '#5F3DC4']];
+    ['waitAccept', 'รอผู้แจ้งตรวจงาน', '#E6FCF5', '#087F5B'], ['rejected', 'ส่งกลับแก้ไข', '#F3F0FF', '#5F3DC4'], ['paused', 'พักงาน', '#FFF9DB', '#8F6A00']];
   if (!f[DASH_FILTER].length) { const firstNon = fdefs.find(x => f[x[0]].length); if (firstNon) DASH_FILTER = firstNon[0]; }
   const maxCat = Math.max(1, ...o.categories.map(c => Math.max(c.n, c.prev)));
   const maxB = Math.max(1, ...o.buildings.map(b => b.n));
@@ -538,7 +585,8 @@ async function pageDash() {
     <div class="kpis">
       <div class="kpi"><div class="lb">งานแจ้งซ่อมเดือนนี้</div><div class="v">${s.total}</div><div class="dl">${delta(s.total, p.total, 0, ' งาน')}</div></div>
       <div class="kpi"><div class="lb">ปิดแล้ว / คงค้าง</div><div class="v">${s.closed} <span style="font-size:18px;color:var(--muted)">/ ${s.open}</span></div><div class="dl">${delta(s.open, p.open, -1, ' งานค้าง')}</div></div>
-      <div class="kpi"><div class="lb">เสร็จทันใน ${o.slaDays} วัน (เป้า ${o.kpiTarget}%)</div><div class="v" style="color:${s.isoPct === null ? 'inherit' : s.isoPct >= o.kpiTarget ? '#2B8A3E' : 'var(--bad)'}">${s.isoPct === null ? '-' : s.isoPct + '%'}</div><div class="dl">${delta(s.isoPct, p.isoPct, 1, '%')}</div></div>
+      <div class="kpi"><div class="lb">KPI งานใหม่ ทันใน ${o.slaDays} วัน (เป้า ${o.kpiTarget}%)</div><div class="v" style="color:${s.isoPct === null ? 'inherit' : s.isoPct >= o.kpiTarget ? '#2B8A3E' : 'var(--bad)'}">${s.isoPct === null ? '-' : s.isoPct + '%'}</div><div class="dl">${delta(s.isoPct, p.isoPct, 1, '%')}</div></div>
+      <div class="kpi"><div class="lb">KPI งานแก้ ทันใน ${o.slaDays} วัน</div><div class="v" style="color:${s.reworkPct === null ? 'inherit' : s.reworkPct >= o.kpiTarget ? '#2B8A3E' : 'var(--bad)'}">${s.reworkPct === null ? '-' : s.reworkPct + '%'}</div><div class="dl"><span class="nt">ส่งกลับแก้ไข ${s.rejected} ใบ · พักงาน ${s.paused} ใบ</span></div></div>
       <div class="kpi"><div class="lb">ความพึงพอใจเฉลี่ย (เต็ม 5)</div><div class="v">${s.avgRating === null ? '-' : s.avgRating}</div><div class="dl">${delta(s.avgRating, p.avgRating, 1)}</div></div>
     </div>
     <div class="dgrid">
@@ -550,8 +598,8 @@ async function pageDash() {
       <div class="card"><h2>ตามประเภทงาน</h2>${o.categories.map(c => `<div class="hbar"><span>${esc(c.name)}</span><div class="tr"><div class="fl" style="width:${c.n * 100 / maxCat}%;background:${c.color || CAT_COL[c.name] || '#868E96'}"></div></div><span class="n">${c.n}</span></div>`).join('')}
         <div class="hint">เดือนก่อน: ${o.categories.map(c => esc(c.name.split(' ')[0]) + ' ' + c.prev).join(' · ')}</div></div>
       <div class="card"><h2>ตามอาคาร</h2>${o.buildings.map(b => `<div class="hbar"><span>${esc(b.name.replace('อาคาร', ''))}</span><div class="tr"><div class="fl" style="width:${b.n * 100 / maxB}%;background:#495057"></div></div><span class="n">${b.n}</span></div>`).join('')}</div>
-      <div class="card"><h2>ตามช่างผู้ปฏิบัติงาน</h2><table class="tt"><tr><th>ช่าง</th><th>งานค้าง<br>ตอนนี้</th><th>งาน<br>เดือนนี้</th><th>ปิด<br>แล้ว</th><th>ทัน<br>${o.slaDays} วัน</th><th>คะแนน</th></tr>
-        ${o.techs.map(t => `<tr><td>${esc(t.name)}</td><td style="font-weight:700;color:${t.openNow > 3 ? 'var(--bad)' : 'inherit'}">${t.openNow}</td><td>${t.month}</td><td>${t.closed}</td><td>${t.isoPct === null ? '-' : t.isoPct + '%'}</td><td>${t.rating === null ? '-' : t.rating}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">ยังไม่มีช่าง</td></tr>'}</table></div>
+      <div class="card"><h2>ตามช่างผู้ปฏิบัติงาน</h2><table class="tt"><tr><th>ช่าง</th><th>งานค้าง<br>ตอนนี้</th><th>งาน<br>เดือนนี้</th><th>ปิด<br>แล้ว</th><th>ทัน<br>${o.slaDays} วัน</th><th>ส่งกลับ<br>แก้ไข</th><th>คะแนน</th></tr>
+        ${o.techs.map(t => `<tr><td>${esc(t.name)}</td><td style="font-weight:700;color:${t.openNow > 3 ? 'var(--bad)' : 'inherit'}">${t.openNow}</td><td>${t.month}</td><td>${t.closed}</td><td>${t.isoPct === null ? '-' : t.isoPct + '%'}</td><td>${t.rework || 0}</td><td>${t.rating === null ? '-' : t.rating}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">ยังไม่มีช่าง</td></tr>'}</table></div>
       <div class="card"><h2>รายการที่แจ้งบ่อย</h2>${o.topItems.map(b => `<div class="hbar"><span>${esc(b.name)}</span><div class="tr"><div class="fl" style="width:${b.n * 100 / maxI}%;background:#06A94D"></div></div><span class="n">${b.n}</span></div>`).join('') || '<div class="muted small">ยังไม่มีข้อมูล</div>'}</div>
       <div class="card wide"><h2>รายงานประจำเดือน</h2>
         ${o.isAdmin ? `<button class="btn sm" id="genRep">สร้างรายงาน ${esc(o.label)} (ข้อมูลถึงวันนี้)</button><div class="hint">ระบบสร้างรายงานให้อัตโนมัติทุกวันที่ 1 อยู่แล้ว ปุ่มนี้ใช้เมื่อต้องการตัวเลขระหว่างเดือน</div>` : ''}
@@ -560,7 +608,7 @@ async function pageDash() {
   const drawF = () => {
     const l = f[DASH_FILTER];
     $('#fl').innerHTML = l.length ? l.slice(0, 12).map(t => `<a href="javascript:void 0" onclick="go('job','${t.no}')"><span><b>#${t.no}</b> ${esc(t.items_text || t.detail)} · ${esc(t.building.replace('อาคาร', ''))}</span>
-      <span>${DASH_FILTER === 'waitAccept' ? 'รอ ' + t.waitDays + ' วัน' : esc(t.assigned_name || 'ยังไม่มอบหมาย')} · ${DASH_FILTER === 'overdue' ? 'แจ้งมา ' + t.ageDays + ' วัน' : 'กำหนด ' + esc(t.due)}</span></a>`).join('') + (l.length > 12 ? `<div class="hint">และอีก ${l.length - 12} รายการ</div>` : '')
+      <span>${DASH_FILTER === 'paused' ? '⏸ ' + esc(t.pause_reason) + ' · ' + t.pausedDays + ' วัน' : DASH_FILTER === 'waitAccept' ? 'รอ ' + t.waitDays + ' วัน' : esc(t.assigned_name || 'ยังไม่มอบหมาย')} · ${DASH_FILTER === 'overdue' ? 'แจ้งมา ' + t.ageDays + ' วัน' : 'กำหนด ' + esc(t.due)}</span></a>`).join('') + (l.length > 12 ? `<div class="hint">และอีก ${l.length - 12} รายการ</div>` : '')
       : '<div class="muted small" style="padding:8px 0">ไม่มีรายการ 👍</div>';
   };
   app.querySelectorAll('.fchip').forEach(b => b.onclick = () => { DASH_FILTER = b.dataset.f; app.querySelectorAll('.fchip').forEach(x => x.classList.toggle('on', x === b)); drawF(); });
