@@ -103,6 +103,7 @@ const REQ_FIELDS = [
   ['assigned_name', 'ช่างผู้ปฏิบัติงาน'],
   ['assigned_at', 'วันเวลามอบหมาย'],
   ['appoint_date', 'นัดเข้าทำวันที่'],
+  ['appoint_time', 'นัดเข้าทำเวลา'],
   ['plan', 'ผลประเมิน'],
   ['plan_days', 'จำนวนวัน (รออุปกรณ์/บริษัทภายนอก)'],
   ['plan_note', 'หมายเหตุการประเมิน'],
@@ -418,7 +419,7 @@ const DEFAULT_OPTIONS = {
 };
 const DEFAULT_CAT_COLORS = { 'CCTV & Access Control': '#7048E8', 'Network': '#F08C00', 'Software': '#2F9E44', 'Hardware': '#1C7ED6' };
 /** รายการที่มีช่องติ๊กอยู่ในเทมเพลตใบแจ้งซ่อม (รายการใหม่จะแสดงในบรรทัด "อื่นๆ") */
-const TEMPLATE_ITEM_IDS = ['i1_1', 'i1_2', 'i1_3', 'i1_4', 'i1_5', 'i2_1', 'i2_2', 'i2_3', 'i2_4', 'i3_1', 'i3_2', 'i3_3', 'i4_1'];
+const TEMPLATE_ITEM_IDS = ['i1_1', 'i1_2', 'i1_3', 'i1_4', 'i2_1', 'i2_2', 'i2_3', 'i2_4', 'i3_1', 'i3_2', 'i3_3', 'i4_1'];
 
 function isOn_(v) { return v === true || String(v).toUpperCase() === 'TRUE'; }
 
@@ -766,8 +767,8 @@ function toClient_(t, full) {
     building: t.building, floor: t.floor, room: t.room,
     items_text: t.items_text, detail: t.detail, category: t.category || t.category_auto,
     assigned_name: t.assigned_name, assigned_uid: t.assigned_uid,
-    due: thaiShort_(curDue_(t)), appoint: thaiShort_(t.appoint_date),
-    appoint_iso: t.appoint_date ? fmt_(t.appoint_date, 'yyyy-MM-dd') : '',
+    due: thaiShort_(curDue_(t)), appoint: thaiShort_(t.appoint_date) + (t.appoint_time ? ' ' + t.appoint_time + ' น.' : ''),
+    appoint_iso: t.appoint_date ? fmt_(t.appoint_date, 'yyyy-MM-dd') : '', appoint_time: str_(t.appoint_time),
     done: thaiShort_(t.done_at), iso: t.iso, acked: !!t.ack_at,
     overdue: isOverdue_(t), rework: isRework_(t), reject_count: Number(t.reject_count || 0),
     pause_reason: t.status === STATUS.PAUSED ? t.pause_reason : '', paused: t.status === STATUS.PAUSED ? thaiShort_(t.paused_at) : ''
@@ -841,7 +842,7 @@ function apiSubmit_(me, d) {
     t.no = Number(setting_('NEXT_NO', 1));
     setSetting_('NEXT_NO', t.no + 1);
     t._row = appendObj_(SH.REQ, REQ_FIELDS, t);
-  } finally { lock.release(); }
+  } finally { lock.releaseLock(); }
   if (d.reqId) cache.put('sub_' + d.reqId, String(t.no), 3600);
 
   const folder = ticketFolder_(t);
@@ -898,6 +899,7 @@ function apiAccept_(me, d) {
     patch.status = STATUS.CLOSED;
     updateTicket_(t, patch, 'ตรวจงาน: ผ่าน', me, via + ' | คะแนน ' + rating);
     try { generateTicketPdf_(t); } catch (e) { logError_(e, 'pdf ' + t.no); }
+    notifyClosed_(t, rating);
   } else {
     // งานแก้ (Rework): เริ่มนับ SLA ใหม่จากวันที่ส่งกลับแก้ไข
     patch.status = STATUS.REJECTED;
@@ -919,6 +921,7 @@ function apiSaveProfile_(me, d) {
   const need = { name: 'ชื่อ-นามสกุล', department: 'ภาควิชา/หน่วยงาน', phone: 'หมายเลขติดต่อกลับ' };
   Object.keys(need).forEach(k => { if (!str_(d[k])) throw new Error('กรุณากรอก ' + need[k]); });
   if (d.building && buildings_().indexOf(d.building) < 0) throw new Error('อาคารไม่ถูกต้อง');
+  if (!str_(d.building) && !str_(d.floor) && !str_(d.room)) throw new Error('กรุณาระบุสถานที่ทำงานประจำ อย่างน้อย 1 ช่อง (อาคาร ชั้น หรือห้อง)');
   const ex = userByUid_(me.uid);
   if (!d.pdpa && !(ex && ex.pdpa_at)) throw new Error('กรุณายอมรับเงื่อนไขการเก็บข้อมูล');
   const now = new Date();
@@ -968,6 +971,47 @@ function resumeTicket_(t, me) {
   }
   updateTicket_(t, patch, 'ทำงานต่อ (พัก ' + days + ' วัน)', me, t.pause_reason + ' | กำหนดเสร็จใหม่ ' + thaiShort_(curDue_(Object.assign({}, t, patch))));
   return t;
+}
+
+/** ตอบรายการงานที่ยังไม่มีคนรับ + งานเกินกำหนด (ข้อความตอบกลับ ไม่เสียโควตา) */
+function replyPending_(replyToken, withLink) {
+  const all = allTickets_();
+  const now = new Date();
+  const wait = all.filter(t => t.status === STATUS.NEW).sort((a, b) => a.no - b.no);
+  const late = all.filter(t => t.status !== STATUS.NEW && isOverdue_(t)).sort((a, b) => a.no - b.no);
+  if (!wait.length && !late.length) {
+    reply_(replyToken, text_('ไม่มีงานค้างรอมอบหมาย และไม่มีงานเกินกำหนด 👍' + (withLink ? '\n\nดูภาพรวมทั้งหมด: ' + liffUrl_('dash') : '')));
+    return;
+  }
+  const msgs = [];
+  let head = '📋 สรุป ณ ' + thaiDateTime_(now);
+  head += '\n• รอมอบหมาย ' + wait.length + ' ใบ';
+  if (late.length) head += '\n• เกินกำหนด ' + late.length + ' ใบ: ' + late.slice(0, 10).map(t => '#' + t.no + ' (' + (t.assigned_name || 'ยังไม่มอบหมาย') + ')').join(', ');
+  if (withLink) head += '\nภาพรวมทั้งหมด: ' + liffUrl_('dash');
+  msgs.push(text_(head));
+  if (wait.length) {
+    msgs.push({ type: 'flex', altText: 'งานรอมอบหมาย ' + wait.length + ' ใบ', contents: { type: 'carousel',
+      contents: wait.slice(0, 10).map(t => ticketFlex_(t, 'รอมอบหมาย · แจ้งมา ' + daysBetween_(t.created_at, now) + ' วัน', '#E8590C',
+        [{ label: 'เปิดดู / มอบหมายงาน', uri: liffUrl_('staff', t.no) }], [['กำหนดเสร็จ', thaiShort_(curDue_(t))]]).contents) } });
+  }
+  reply_(replyToken, msgs);
+}
+
+/** แจ้งกลุ่ม (หรือแอดมิน) ว่างานปิดจบแล้ว พร้อมคะแนนที่ผู้แจ้งให้ */
+function notifyClosed_(t, rating) {
+  try {
+    const stars = '★'.repeat(Number(rating) || 0) + '☆'.repeat(5 - (Number(rating) || 0));
+    const msg = ticketFlex_(t, 'ปิดงานเรียบร้อย · ตรวจรับแล้ว', '#2B8A3E', [], [
+      ['ช่าง', t.assigned_name],
+      ['วันที่เสร็จ', thaiShort_(t.done_at)],
+      ['ผู้ตรวจรับ', t.signer_name],
+      ['คะแนน', stars + ' (' + rating + '/5)'],
+      ['ผลตามเกณฑ์', t.iso + (t.rework_iso ? ' / งานแก้: ' + t.rework_iso : '')]
+    ]);
+    const gid = str_(setting_('NOTIFY_GROUP_ID', ''));
+    if (setting_('NOTIFY_NEW', 'admins') === 'group' && gid) push_(gid, msg);
+    else pushAdmins_(msg);
+  } catch (e) { logError_(e, 'notifyClosed ' + t.no); }
 }
 
 function apiRegister_(me, d) {
@@ -1033,13 +1077,14 @@ function apiPlan_(me, d) {
   if ([STATUS.ASSIGNED, STATUS.PLANNED].indexOf(t.status) < 0) throw new Error('ไม่สามารถนัดหมายในสถานะ ' + t.status);
   if (!PLAN_LABEL[d.plan]) throw new Error('กรุณาเลือกผลการประเมิน');
   if (!d.appoint_date) throw new Error('กรุณาระบุวันนัดเข้าทำ');
+  if (!/^\d{1,2}:\d{2}$/.test(str_(d.appoint_time))) throw new Error('กรุณาระบุเวลานัดเข้าทำ');
   const patch = {
-    status: STATUS.PLANNED, appoint_date: parseDateInput_(d.appoint_date), plan: PLAN_LABEL[d.plan],
+    status: STATUS.PLANNED, appoint_date: parseDateInput_(d.appoint_date), appoint_time: str_(d.appoint_time), plan: PLAN_LABEL[d.plan],
     plan_days: d.plan === 'now' ? '' : Number(d.plan_days || 0), plan_note: clip_(d.plan_note, 500),
     planned_at: new Date(), ack_at: '', ack_by: '', ack_token: randToken_()
   };
-  updateTicket_(t, patch, 'บันทึกนัดหมาย/ประเมิน', me, patch.plan + (patch.plan_days ? ' ' + patch.plan_days + ' วัน' : '') + ' นัด ' + thaiShort_(patch.appoint_date));
-  const extra = [['นัดเข้าทำ', thaiDate_(t.appoint_date)], ['ผลประเมิน', t.plan + (t.plan_days ? ' ภายใน ' + t.plan_days + ' วัน' : '')], ['ช่าง', t.assigned_name]];
+  updateTicket_(t, patch, 'บันทึกนัดหมาย/ประเมิน', me, patch.plan + (patch.plan_days ? ' ' + patch.plan_days + ' วัน' : '') + ' นัด ' + thaiShort_(patch.appoint_date) + ' ' + patch.appoint_time + ' น.');
+  const extra = [['นัดเข้าทำ', thaiDate_(t.appoint_date) + ' เวลา ' + t.appoint_time + ' น.'], ['ผลประเมิน', t.plan + (t.plan_days ? ' ภายใน ' + t.plan_days + ' วัน' : '')], ['ช่าง', t.assigned_name]];
   if (t.plan_note) extra.push(['หมายเหตุ', t.plan_note]);
   push_(t.reporter_uid, ticketFlex_(t, 'นัดหมายเข้าดำเนินการ', '#1C7ED6', [
     { label: 'รับทราบ', data: 'act=ack&no=' + t.no + '&t=' + t.ack_token, displayText: 'รับทราบนัดหมาย #' + t.no },
@@ -1150,7 +1195,7 @@ function handleEvent_(ev) {
       const t = getTicket_(p.no);
       if (t.reporter_uid !== uid || !t.ack_token || t.ack_token !== p.t) { reply_(ev.replyToken, text_('ลิงก์รับทราบนี้หมดอายุแล้ว')); return; }
       if (!t.ack_at) updateTicket_(t, { ack_at: new Date(), ack_by: t.reporter_name }, 'ผู้แจ้งรับทราบนัดหมาย', { uid: uid, name: t.reporter_name }, 'ผ่านปุ่มใน LINE');
-      reply_(ev.replyToken, text_('รับทราบนัดหมายใบแจ้งซ่อม #' + t.no + ' เรียบร้อย ✅\nนัดเข้าทำ: ' + thaiDate_(t.appoint_date)));
+      reply_(ev.replyToken, text_('รับทราบนัดหมายใบแจ้งซ่อม #' + t.no + ' เรียบร้อย ✅\nนัดเข้าทำ: ' + thaiDate_(t.appoint_date) + ' เวลา ' + t.appoint_time + ' น.'));
     }
     return;
   }
@@ -1177,13 +1222,36 @@ function handleEvent_(ev) {
       contents: mine.map(t => ticketFlex_(t, 'ใบแจ้งซ่อม #' + t.no, '#1C7ED6', [{ label: 'ดูรายละเอียด', uri: liffUrl_('ticket', t.no) }]).contents) } });
     return;
   }
-  const g = txt.match(/^#ผูกกลุ่ม\s+(\S+)/);
-  if (g && ev.source.type === 'group') {
-    if (g[1] === str_(setting_('REGISTER_CODE_ADMIN', ''))) {
-      setSetting_('NOTIFY_GROUP_ID', ev.source.groupId);
+  // "งานค้าง" — ตอบรายการงานที่ยังไม่มีคนรับ (ใช้ได้ในกลุ่มที่ผูกไว้ หรือแชตส่วนตัวของเจ้าหน้าที่)
+  if (/^(งานค้าง|งานคงค้าง|งานรอมอบหมาย)$/.test(txt)) {
+    const inGroup = ev.source.type === 'group' || ev.source.type === 'room';
+    const groupId = str_(setting_('NOTIFY_GROUP_ID', ''));
+    const okGroup = inGroup && groupId && (ev.source.groupId === groupId || ev.source.roomId === groupId);
+    if (!okGroup && !(!inGroup && staffByUid_(uid))) return;
+    replyPending_(ev.replyToken, !inGroup);
+    return;
+  }
+  const g = txt.match(/^#(ผูกกลุ่ม|เลิกผูกกลุ่ม)\s*(\S*)/);
+  if (g && (ev.source.type === 'group' || ev.source.type === 'room')) {
+    // เฉพาะแอดมินที่ลงทะเบียนแล้วเท่านั้น (ตรวจจากบัญชี LINE ของผู้พิมพ์ ไม่ใช่แค่รหัส)
+    const me = uid ? staffByUid_(uid) : null;
+    if (!me || me.role !== 'admin') {
+      reply_(ev.replyToken, text_('เฉพาะหัวหน้างาน/แอดมินที่ลงทะเบียนในระบบแล้วเท่านั้นที่ผูกกลุ่มได้'));
+      return;
+    }
+    const gid = ev.source.groupId || ev.source.roomId;
+    const by = { uid: uid, name: me.name };
+    if (g[1] === 'ผูกกลุ่ม') {
+      setSetting_('NOTIFY_GROUP_ID', gid);
       setSetting_('NOTIFY_NEW', 'group');
-      log_('', 'ผูกกลุ่มแจ้งเตือน', '', '', { uid: uid, name: '' }, ev.source.groupId);
-      reply_(ev.replyToken, text_('ผูกกลุ่มนี้สำหรับแจ้งเตือนงานใหม่เรียบร้อย ✅'));
+      log_('', 'ผูกกลุ่มแจ้งเตือน', '', '', by, gid);
+      reply_(ev.replyToken, text_('ผูกกลุ่มนี้สำหรับแจ้งเตือนงานใหม่เรียบร้อย ✅ (โดย ' + me.name + ')\n\nพิมพ์ "งานค้าง" ในกลุ่มนี้เพื่อดูงานที่ยังไม่มีคนรับได้ตลอด'));
+    } else {
+      if (str_(setting_('NOTIFY_GROUP_ID', '')) !== gid) { reply_(ev.replyToken, text_('กลุ่มนี้ไม่ได้ถูกผูกไว้อยู่แล้ว')); return; }
+      setSetting_('NOTIFY_GROUP_ID', '');
+      setSetting_('NOTIFY_NEW', 'admins');
+      log_('', 'เลิกผูกกลุ่มแจ้งเตือน', '', '', by, gid);
+      reply_(ev.replyToken, text_('เลิกผูกกลุ่มนี้แล้ว ✅ (โดย ' + me.name + ')\nงานใหม่จะส่งแจ้งเตือนไปที่แชตของแอดมินแต่ละคนแทน'));
     }
   }
 }
@@ -1191,7 +1259,7 @@ function handleEvent_(ev) {
 // ===== Docs.gs =====
 /** ===== สร้าง PDF ใบแจ้งซ่อม (FM-PPM-2-01) จากเทมเพลต Google Docs ===== */
 
-const CHK = '☑', UNCHK = '☐';
+const CHK = '✔', UNCHK = '';
 
 function generateTicketPdf_(t) {
   const tplId = setting_('TICKET_TEMPLATE_ID', '');
@@ -1241,7 +1309,7 @@ function ticketPlaceholders_(t) {
     DEPT: dots_(t.department, 30), PHONE: dots_(t.phone, 15), FLOOR: dots_(t.floor, 6), ROOM: dots_(t.room, 12),
     DETAIL: dots_(t.detail, 60), CARD_NAME: dots_(t.card_name, 30), CARD_NO: dots_(t.card_no, 25),
     REPORTER_NAME: t.reporter_name, REPORT_DATE: thaiShort_(t.created_at),
-    DUE: thaiShort_(t.due_date), APPOINT: dots_(thaiShort_(t.appoint_date), 20),
+    DUE: thaiShort_(t.due_date), APPOINT: dots_(thaiShort_(t.appoint_date), 20), APPOINT_TIME: dots_(t.appoint_time, 6),
     P_WAIT: ck_(t.plan === PLAN_LABEL.now || t.plan === PLAN_LABEL.wait),
     P_WAIT_DAYS: t.plan === PLAN_LABEL.wait ? t.plan_days : (t.plan === PLAN_LABEL.now ? '0' : '......'),
     P_EXT: ck_(t.plan === PLAN_LABEL.external),

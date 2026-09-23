@@ -57,7 +57,21 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--pri-soft);border
 .badge{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;white-space:nowrap}
 .s-new{background:var(--warn-soft);color:var(--warn)} .s-asg{background:var(--blue-soft);color:var(--blue)}
 .s-pln{background:#F3F0FF;color:var(--violet)} .s-wa{background:#E6FCF5;color:#087F5B}
-.s-rej{background:var(--bad-soft);color:var(--bad)} .s-pau{background:#FFF4E6;color:#A35200} .s-cls{background:#EEF1F4;color:#495057} .s-cxl{background:#F8F9FA;color:#ADB5BD}
+.s-rej{background:var(--bad-soft);color:var(--bad)} .s-pau{background:#FFF4E6;color:#A35200}
+.ph.add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:20px}
+.ph.add span{font-size:11px;color:var(--muted)}
+.stp{display:flex;gap:0;margin:2px 0 6px}
+.stp .s{flex:1;text-align:center;position:relative;font-size:11px;color:var(--muted);line-height:1.25}
+.stp .s i{display:block;width:22px;height:22px;border-radius:50%;margin:0 auto 5px;background:#E3E8EE;color:#fff;font-style:normal;font-size:12px;line-height:22px;position:relative;z-index:1}
+.stp .s:before{content:'';position:absolute;top:11px;left:-50%;width:100%;height:3px;background:#E3E8EE}
+.stp .s:first-child:before{display:none}
+.stp .s.on i{background:var(--ok,#2B8A3E)} .stp .s.on:before{background:var(--ok,#2B8A3E)}
+.stp .s.on{color:#1F2933;font-weight:600}
+.stp .s.cur i{box-shadow:0 0 0 4px rgba(43,138,62,.15)}
+.stp .s.warn i{background:#E67700} .stp .s.warn{color:#A35200}
+.nowbox{background:#F1F8F3;border:1px solid #CFE8D6;border-radius:12px;padding:12px 14px;margin-top:8px}
+.nowbox b{display:block;font-size:16px;color:#1B5E2A;margin-bottom:2px}
+.foldh{display:flex;align-items:center;gap:10px;justify-content:space-between} .s-cls{background:#EEF1F4;color:#495057} .s-cxl{background:#F8F9FA;color:#ADB5BD}
 .tk{display:block;background:var(--card);border-radius:var(--r);padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 2px rgba(16,24,40,.05);color:inherit;text-decoration:none}
 .tk .l1{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .tk .no{font-weight:700}
@@ -189,17 +203,23 @@ function compressImage(file, max, q) {
 }
 function photoPicker(el, max) {
   const st = { list: [] };
-  const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.multiple = true; input.className = 'hidden';
-  el.after(input);
+  const mk = capture => {
+    const i = document.createElement('input');
+    i.type = 'file'; i.accept = 'image/*'; i.className = 'hidden';
+    if (capture) i.setAttribute('capture', 'environment'); else i.multiple = true;
+    i.onchange = async () => {
+      for (const f of Array.from(i.files).slice(0, max - st.list.length)) { try { st.list.push(await compressImage(f)); } catch (e) { toast(e.message); } }
+      i.value = ''; draw();
+    };
+    el.after(i); return i;
+  };
+  const cam = mk(true), gal = mk(false);
   const draw = () => {
     el.innerHTML = st.list.map((d, i) => `<div class="ph" style="background-image:url(${d})"><button type="button" data-i="${i}">✕</button></div>`).join('') +
-      (st.list.length < max ? '<div class="ph add">＋</div>' : '');
+      (st.list.length < max ? '<div class="ph add cam">📷<span>ถ่ายภาพ</span></div><div class="ph add gal">🖼<span>เลือกรูป</span></div>' : '');
     el.querySelectorAll('button[data-i]').forEach(b => b.onclick = () => { st.list.splice(+b.dataset.i, 1); draw(); });
-    const add = el.querySelector('.add'); if (add) add.onclick = () => input.click();
-  };
-  input.onchange = async () => {
-    for (const f of Array.from(input.files).slice(0, max - st.list.length)) { try { st.list.push(await compressImage(f)); } catch (e) { toast(e.message); } }
-    input.value = ''; draw();
+    const c = el.querySelector('.cam'); if (c) c.onclick = () => cam.click();
+    const g = el.querySelector('.gal'); if (g) g.onclick = () => gal.click();
   };
   draw(); return st;
 }
@@ -252,7 +272,8 @@ function pageReg() {
       <label class="f">ชื่อ-นามสกุล <b>*</b></label><input type="text" id="nm" value="${esc(P.name || INIT.me.name)}">
       <label class="f">ภาควิชา/หน่วยงาน <b>*</b></label><input type="text" id="dep" value="${esc(P.department || '')}">
       <label class="f">หมายเลขติดต่อกลับ <b>*</b></label><input type="tel" id="ph" value="${esc(P.phone || '')}"></div>
-    <div class="card"><h2>สถานที่ทำงานประจำ <span class="small muted">(ไม่บังคับ)</span></h2>
+    <div class="card"><h2>สถานที่ทำงานประจำ <b style="color:var(--bad)">*</b></h2>
+      <div class="hint" style="margin:0 0 8px">เลือกอาคาร หรือกรอกชั้น/ห้อง อย่างน้อย 1 ช่อง</div>
       <div class="chips" id="bld">${L.buildings.map(b => `<button type="button" class="chip${b === bld ? ' on' : ''}" data-b="${esc(b)}">${esc(b)}</button>`).join('')}</div>
       <div class="row"><div><label class="f">ชั้น</label><input type="text" id="fl" inputmode="numeric" value="${esc(P.floor || '')}"></div>
       <div><label class="f">ห้อง</label><input type="text" id="rm" value="${esc(P.room || '')}"></div></div></div>
@@ -261,7 +282,8 @@ function pageReg() {
   app.querySelectorAll('#bld .chip').forEach(c => c.onclick = () => { bld = bld === c.dataset.b ? '' : c.dataset.b; app.querySelectorAll('#bld .chip').forEach(x => x.classList.toggle('on', x.dataset.b === bld)); });
   $('#save').onclick = async () => {
     const d = { name: $('#nm').value.trim(), department: $('#dep').value.trim(), phone: $('#ph').value.trim(), building: bld, floor: $('#fl').value.trim(), room: $('#rm').value.trim(), pdpa: first ? $('#pdpa').checked : true };
-    const miss = !d.name ? 'ชื่อ-นามสกุล' : !d.department ? 'ภาควิชา/หน่วยงาน' : !d.phone ? 'หมายเลขติดต่อกลับ' : !d.pdpa ? 'การยินยอมเก็บข้อมูล' : '';
+    const miss = !d.name ? 'ชื่อ-นามสกุล' : !d.department ? 'ภาควิชา/หน่วยงาน' : !d.phone ? 'หมายเลขติดต่อกลับ'
+      : (!d.building && !d.floor && !d.room) ? 'สถานที่ทำงานประจำ อย่างน้อย 1 ช่อง' : !d.pdpa ? 'การยินยอมเก็บข้อมูล' : '';
     if (miss) return toast('กรุณากรอก: ' + miss);
     const r = await run(() => api('saveProfile', d));
     INIT.me.profile = r.profile; toast(first ? 'ลงทะเบียนสำเร็จ' : 'บันทึกแล้ว'); go(first ? 'form' : 'mine');
@@ -351,7 +373,7 @@ function tkCard(t, staffView) {
 }
 
 /* ---------- 3) รายละเอียดใบแจ้งซ่อม (ผู้แจ้ง) ---------- */
-function ticketDetailHtml(t) {
+function ticketDetailHtml(t, showTimeline) {
   const dl = rows => '<dl class="kv">' + rows.filter(r => r[1] !== undefined && r[1] !== null && r[1] !== '').map(r => `<dt>${r[0]}</dt><dd>${esc(r[1])}</dd>`).join('') + '</dl>';
   return `<div class="card"><div class="l1" style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">ใบแจ้งซ่อม #${t.no}</h2>${badge(t.status)}</div><div class="hr"></div>
     ${dl([['วันที่แจ้ง', t.created], ['ผู้แจ้ง', t.reporter_name], ['หน่วยงาน', t.department], ['โทร', t.phone],
@@ -362,13 +384,57 @@ function ticketDetailHtml(t) {
       ['หมายเหตุ', t.plan_note], ['ผู้แจ้งรับทราบ', t.ack], ['สาเหตุที่พบ', t.cause], ['การแก้ไข', t.solution], ['คำแนะนำ', t.advice], ['รหัสครุภัณฑ์', t.asset_code], ['วันที่เสร็จ', t.done], ['วันพักงาน', t.pause_days ? t.pause_days + ' วัน (ไม่นับ KPI)' : ''], ['ISO งานใหม่', t.iso], ['ISO งานแก้', t.rework_iso]])}
       ${t.after_photos && t.after_photos.length ? '<label class="f">รูปหลังดำเนินการ</label><div class="imgs">' + t.after_photos.map(s => `<img src="${s}">`).join('') + '</div>' : ''}</div>` : ''}
     ${t.accept_result ? `<div class="card"><h2>การตรวจงาน</h2>${dl([['ผล', t.accept_result === 'แล้วเสร็จ' ? 'ผ่าน' : 'ส่งกลับแก้ไข'], ['เหตุผล', t.accept_reason], ['คะแนน', t.rating ? t.rating + ' / 5' : ''], ['ผู้ลงนาม', t.signer_name], ['เมื่อ', t.accepted]])}</div>` : ''}
-    <div class="card"><h2>ประวัติการดำเนินการ</h2><ul class="tl">${(t.timeline || []).map(l => `<li><div>${esc(l.action)}${l.by ? ' · ' + esc(l.by) : ''}</div><div class="ts">${esc(l.ts)}</div></li>`).join('')}</ul></div>`;
+    ${showTimeline ? `<div class="card"><h2>ประวัติการดำเนินการ</h2><ul class="tl">${(t.timeline || []).map(l => `<li><div>${esc(l.action)}${l.by ? ' · ' + esc(l.by) : ''}</div><div class="ts">${esc(l.ts)}</div></li>`).join('')}</ul></div>` : ''}`;
+}
+const STEPS = [
+  { k: 'new', label: 'รับแจ้ง' }, { k: 'asg', label: 'มอบหมายช่าง' }, { k: 'pln', label: 'นัดหมาย' },
+  { k: 'fix', label: 'ดำเนินการซ่อม' }, { k: 'chk', label: 'ตรวจงาน' }, { k: 'cls', label: 'ปิดงาน' }
+];
+function stepIndex(t) {
+  return { 'รอมอบหมาย': 0, 'มอบหมายแล้ว': 1, 'นัดหมายแล้ว': 2, 'พักงาน': 3, 'ส่งกลับแก้ไข': 3, 'รอตรวจงาน': 4, 'ดำเนินการเสร็จสิ้น': 5, 'ยกเลิก': 5 }[t.status] || 0;
+}
+/** ข้อความบอกสถานะปัจจุบันแบบเข้าใจง่ายสำหรับผู้แจ้ง */
+function nowText(t) {
+  switch (t.status) {
+    case 'รอมอบหมาย': return ['รับเรื่องแล้ว กำลังจัดช่าง', 'เจ้าหน้าที่จะแจ้งวันนัดเข้าดำเนินการให้ทราบ'];
+    case 'มอบหมายแล้ว': return ['มอบหมายช่างแล้ว', 'ช่างผู้รับผิดชอบ: ' + (t.assigned_name || '-')];
+    case 'นัดหมายแล้ว': return ['นัดเข้าดำเนินการ ' + (t.appoint || '-'), 'ช่าง: ' + (t.assigned_name || '-') + (t.acked ? '' : ' · กรุณากดรับทราบนัดหมาย')];
+    case 'พักงาน': return ['พักงานชั่วคราว: ' + (t.pause_reason || '-'), 'ช่าง: ' + (t.assigned_name || '-') + ' · จะแจ้งอีกครั้งเมื่อดำเนินการต่อ'];
+    case 'ส่งกลับแก้ไข': return ['ช่างกำลังแก้ไขงานให้', 'ช่าง: ' + (t.assigned_name || '-') + ' · กำหนดแก้เสร็จ ' + (t.due || '-')];
+    case 'รอตรวจงาน': return ['ช่างดำเนินการเสร็จแล้ว', 'กรุณาตรวจงานและให้คะแนน'];
+    case 'ดำเนินการเสร็จสิ้น': return ['ปิดงานเรียบร้อย ขอบคุณที่ใช้บริการ', 'ตรวจรับเมื่อ ' + (t.accepted || '-')];
+    case 'ยกเลิก': return ['ใบแจ้งซ่อมนี้ถูกยกเลิก', ''];
+    default: return [t.status, ''];
+  }
+}
+function stepperHtml(t) {
+  const i = stepIndex(t), warn = ['พักงาน', 'ส่งกลับแก้ไข', 'ยกเลิก'].indexOf(t.status) >= 0;
+  const now = nowText(t);
+  return `<div class="card"><div class="l1" style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">ใบแจ้งซ่อม #${t.no}</h2>${badge(t.status)}</div>
+    <div class="hr"></div>
+    <div class="stp">${STEPS.map((x, n) => `<div class="s${n <= i ? ' on' : ''}${n === i ? ' cur' : ''}${n === i && warn ? ' warn' : ''}"><i>${n < i ? '✓' : n + 1}</i>${x.label}</div>`).join('')}</div>
+    <div class="nowbox"><b>${esc(now[0])}</b>${now[1] ? '<span class="small">' + esc(now[1]) + '</span>' : ''}</div>
+    ${t.due && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0 ? `<div class="hint">กำหนดแล้วเสร็จ ${esc(t.due)}${t.overdue ? ' (เกินกำหนด)' : ''}</div>` : ''}</div>`;
+}
+/** หน้าสำหรับผู้แจ้ง: เห็นสถานะ ข้อมูลที่แจ้ง และผลตรวจรับ (ไม่ต้องเห็นประวัติหลังบ้าน) */
+function reporterViewHtml(t) {
+  const dl = rows => '<dl class="kv">' + rows.filter(r => r[1] !== undefined && r[1] !== null && r[1] !== '').map(r => `<dt>${r[0]}</dt><dd>${esc(r[1])}</dd>`).join('') + '</dl>';
+  return stepperHtml(t) +
+    `<div class="card"><h2>เรื่องที่แจ้ง</h2>${dl([['วันที่แจ้ง', t.created],
+      ['สถานที่', [t.building, t.floor ? 'ชั้น ' + t.floor : '', t.room ? 'ห้อง ' + t.room : ''].filter(Boolean).join(' ')],
+      ['รายการ', t.items_text], ['รายละเอียด', t.detail]])}
+      ${t.photos && t.photos.length ? '<label class="f">รูปที่แนบ</label><div class="imgs">' + t.photos.map(x => `<img src="${x}">`).join('') + '</div>' : ''}</div>` +
+    (t.done ? `<div class="card"><h2>ผลการซ่อม</h2>${dl([['ช่างผู้ปฏิบัติงาน', t.assigned_name], ['วันที่เสร็จ', t.done], ['สาเหตุที่พบ', t.cause], ['การแก้ไข', t.solution], ['คำแนะนำ', t.advice]])}
+      ${t.after_photos && t.after_photos.length ? '<label class="f">รูปหลังดำเนินการ</label><div class="imgs">' + t.after_photos.map(x => `<img src="${x}">`).join('') + '</div>' : ''}</div>` : '') +
+    (t.accept_result ? `<div class="card"><h2>การตรวจรับ</h2>${dl([['ผล', t.accept_result === 'แล้วเสร็จ' ? 'ผ่าน' : 'ส่งกลับแก้ไข'], ['สิ่งที่ต้องแก้ไข', t.accept_reason],
+      ['คะแนนที่ให้', t.rating ? '★'.repeat(t.rating) + '☆'.repeat(5 - t.rating) + '  (' + t.rating + '/5)' : ''], ['ผู้ลงนาม', t.signer_name], ['เมื่อ', t.accepted]])}
+      ${t.pdf_url ? `<a class="btn sec" style="text-align:center;text-decoration:none;display:block" href="${t.pdf_url}" target="_blank">📄 เปิดใบแจ้งซ่อม PDF</a>` : ''}</div>` : '');
 }
 async function pageTicket(no) {
-  app.innerHTML = topBar('ใบแจ้งซ่อม #' + no, 'mine') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div><div class="bar hidden" id="bar"><div class="in" id="barIn"></div></div>';
+  app.innerHTML = topBar('ติดตามงาน #' + no, 'mine') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div><div class="bar hidden" id="bar"><div class="in" id="barIn"></div></div>';
   const r = await run(() => api('getTicket', { no }));
   const t = r.ticket;
-  $('#d').innerHTML = ticketDetailHtml(t);
+  $('#d').innerHTML = r.isReporter && !r.canWork ? reporterViewHtml(t) : ticketDetailHtml(t, true);
   const btns = [];
   if (r.isReporter && t.status === 'นัดหมายแล้ว' && !t.acked) btns.push('<button class="btn blue" id="ack">รับทราบนัดหมาย</button>');
   if (r.isReporter && t.status === 'รอตรวจงาน') btns.push(`<button class="btn" onclick="go('accept','${t.no}')">ตรวจงาน (ผ่าน / แก้ไข)</button>`);
@@ -382,7 +448,7 @@ async function pageAccept(no) {
   app.innerHTML = topBar('ตรวจงาน #' + no, onsite ? 'staff' : 'mine') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div>';
   const r = await run(() => api('getTicket', { no }));
   const t = r.ticket;
-  if (t.status !== 'รอตรวจงาน') { $('#d').innerHTML = `<div class="note warn">ใบแจ้งซ่อมนี้อยู่ในสถานะ “${esc(t.status)}” ไม่ต้องตรวจงาน</div>` + ticketDetailHtml(t); return; }
+  if (t.status !== 'รอตรวจงาน') { $('#d').innerHTML = `<div class="note warn">ใบแจ้งซ่อมนี้อยู่ในสถานะ “${esc(t.status)}” ไม่ต้องตรวจงาน</div>` + (onsite ? ticketDetailHtml(t, true) : reporterViewHtml(t)); return; }
   const st = { result: 'pass', rating: 0 };
   const ratings = [[5, 'ดีมาก'], [4, 'ดี'], [3, 'พอใช้'], [2, 'ปรับปรุง'], [1, 'ปรับปรุงเร่งด่วน']];
   $('#d').innerHTML = `${onsite ? '<div class="note">ให้ผู้รับบริการ/ผู้อยู่หน้างานตรวจสอบและลงนามบนเครื่องนี้</div>' : ''}
@@ -478,15 +544,19 @@ async function pageJob(no) {
       <button class="btn blue sm" id="assign" style="flex:none">${t.assigned_uid ? 'เปลี่ยน' : 'มอบหมาย'}</button></div></div>`);
   }
   if (!isAdmin && t.status === 'รอมอบหมาย') sections.push('<div class="card"><button class="btn blue" id="take">รับงานนี้</button></div>');
-  if (can && ['มอบหมายแล้ว', 'นัดหมายแล้ว'].indexOf(t.status) >= 0) {
-    sections.push(`<div class="card"><h2>นัดหมาย / ผลประเมินเบื้องต้น</h2>
-      <label class="f">ทางหน่วยงานนัดเข้าทำวันที่ <b>*</b></label><input type="date" id="appoint" value="${esc(t.appoint_iso || '')}">
+  const planned = ['นัดหมายแล้ว', 'พักงาน', 'ส่งกลับแก้ไข'].indexOf(t.status) >= 0;
+  if (can && (t.status === 'มอบหมายแล้ว' || planned)) {
+    sections.push(`<div class="card${planned ? ' fold' : ''}" id="planCard">
+      ${planned ? `<div class="foldh"><h2 style="margin:0">นัดหมายแล้ว · ${esc(t.appoint || '')}</h2><button class="btn sec sm" id="editPlan" style="flex:none">แก้ไขนัดหมาย</button></div><div class="foldb hidden">` : '<h2>ขั้นที่ 1 · นัดหมาย / ผลประเมินเบื้องต้น</h2>'}
+      <div class="row"><div><label class="f">นัดเข้าทำวันที่ <b>*</b></label><input type="date" id="appoint" value="${esc(t.appoint_iso || '')}"></div>
+      <div><label class="f">เวลา <b>*</b></label><input type="time" id="appointT" value="${esc(t.appoint_time || '09:00')}"></div></div>
       <label class="f">ผลประเมิน <b>*</b></label><select id="plan"><option value="">— เลือก —</option><option value="now">ซ่อมได้ (ดำเนินการได้ทันที)</option>
       <option value="wait">ซ่อมได้ รอจัดอุปกรณ์</option><option value="external">ซ่อมไม่ได้ ติดต่อบริษัทภายนอก</option></select>
       <div id="daysBox" class="hidden"><label class="f">ภายใน (วัน)</label><input type="number" id="days" min="0" value="1"></div>
       <label class="f">หมายเหตุ</label><input type="text" id="pnote">
       <div style="height:10px"></div><button class="btn blue" id="savePlan">บันทึกนัดหมาย + แจ้งผู้แจ้ง</button>
-      <div class="hint">ผู้แจ้งจะได้รับข้อความพร้อมปุ่ม “รับทราบ” (ช่องผู้แจ้งรับทราบในใบแจ้งซ่อม)</div></div>`);
+      <div class="hint">ผู้แจ้งจะได้รับข้อความพร้อมปุ่ม “รับทราบ” (ช่องผู้แจ้งรับทราบในใบแจ้งซ่อม)</div>
+      ${planned ? '</div>' : ''}</div>`);
   }
   const O = INIT.lists.options || { cause: [], solution: [], pause: [] };
   const optSel = (id, list, cur) => {
@@ -498,14 +568,14 @@ async function pageJob(no) {
     sections.push(`<div class="card"><h2>⏸ พักงานอยู่ (หยุดนับเวลา KPI)</h2><div class="note warn">เหตุผล: ${esc(t.pause_reason)} · ตั้งแต่ ${esc(t.paused)}</div>
       <button class="btn blue" id="resume">▶ ทำงานต่อ</button><div class="hint">วันที่พักจะถูกบวกเข้าไปในกำหนดเสร็จให้อัตโนมัติ</div></div>`);
   }
-  if (can && ['มอบหมายแล้ว', 'นัดหมายแล้ว', 'ส่งกลับแก้ไข'].indexOf(t.status) >= 0) {
+  if (can && ['นัดหมายแล้ว', 'ส่งกลับแก้ไข'].indexOf(t.status) >= 0) {
     sections.push(`<div class="card"><h2>พักงาน (รออะไหล่ / บริษัทภายนอก)</h2>
       <label class="f">เหตุผล <b>*</b></label>${optSel('pr', O.pause, '')}
       <div style="height:10px"></div><button class="btn sec" id="pause">⏸ พักงาน · หยุดนับเวลา</button>
       <div class="hint">ผู้แจ้งจะได้รับแจ้งเหตุผลทาง LINE · ระหว่างพักไม่นับเป็นวันทำงานใน KPI</div></div>`);
   }
-  if (can && ['มอบหมายแล้ว', 'นัดหมายแล้ว', 'พักงาน', 'ส่งกลับแก้ไข'].indexOf(t.status) >= 0 || (!isAdmin && t.status === 'รอมอบหมาย')) {
-    sections.push(`<div class="card"><h2>${t.rework ? 'ปิดงานแก้ (ครั้งที่ ' + t.reject_count + ')' : 'ปิดงาน (ดำเนินการเสร็จ)'}</h2>
+  if (can && ['นัดหมายแล้ว', 'พักงาน', 'ส่งกลับแก้ไข'].indexOf(t.status) >= 0) {
+    sections.push(`<div class="card"><h2>${t.rework ? 'ปิดงานแก้ (ครั้งที่ ' + t.reject_count + ')' : 'ขั้นที่ 2 · ซ่อมบำรุง / ปิดงาน'}</h2>
       ${t.status === 'ส่งกลับแก้ไข' ? `<div class="note warn">ผู้แจ้งขอให้แก้ไข: ${esc(t.accept_reason)} · ต้องแก้เสร็จภายใน ${esc(t.due)}</div>` : ''}
       <label class="f">สาเหตุที่พบ <b>*</b></label>${optSel('cause', O.cause, t.cause || '')}
       <label class="f">แนวทางการแก้ไข <b>*</b></label>${optSel('sol', O.solution, t.solution || '')}
@@ -522,21 +592,23 @@ async function pageJob(no) {
     sections.push(`<div class="card"><h2>รอตรวจงาน</h2><button class="btn" onclick="go('accept','${t.no}',{onsite:1})">ให้ผู้รับบริการเซ็นที่เครื่องนี้</button>
       <div style="height:8px"></div><button class="btn sec" id="resend">ส่งคำขอตรวจงานทาง LINE อีกครั้ง</button></div>`);
   }
+  if (can && t.status === 'มอบหมายแล้ว') sections.push('<div class="note">บันทึกนัดหมายก่อน แล้วระบบจะเปิดขั้นตอนซ่อมบำรุง (พักงาน/ปิดงาน) ให้ในหน้านี้</div>');
   if (t.pdf_url) sections.push(`<div class="card"><a class="btn sec" style="text-align:center;text-decoration:none" href="${t.pdf_url}" target="_blank">📄 เปิดใบแจ้งซ่อม PDF</a></div>`);
   if (isAdmin && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0) sections.push('<div class="center" style="margin:6px 0 18px"><a href="javascript:void 0" id="cxl" class="small" style="color:var(--bad)">ยกเลิกใบแจ้งซ่อมนี้</a></div>');
-  $('#d').innerHTML = sections.join('') + ticketDetailHtml(t);
+  $('#d').innerHTML = sections.join('') + ticketDetailHtml(t, true);
 
   const on = (id, fn) => { const el = $('#' + id); if (el) el.onclick = fn; };
   on('assign', async () => { const uid = $('#tech').value; if (!uid) return toast('เลือกช่าง'); await run(() => api('assign', { no, uid })); toast('มอบหมายแล้ว'); STAFF = null; pageJob(no); });
   app.querySelectorAll('select[id]').forEach(sl => { const o = $('#' + sl.id + '_o'); if (o) sl.onchange = () => o.classList.toggle('hidden', sl.value !== '__other'); });
   const pick = id => { const v = $('#' + id).value; return v === '__other' ? $('#' + id + '_o').value.trim() : v; };
   on('pause', async () => { const reason = pick('pr'); if (!reason) return toast('กรุณาเลือกเหตุผล'); await run(() => api('pause', { no, reason })); toast('พักงานแล้ว'); STAFF = null; pageJob(no); });
+  on('editPlan', () => { const b = document.querySelector('#planCard .foldb'); if (b) b.classList.toggle('hidden'); });
   on('resume', async () => { const r = await run(() => api('resume', { no })); toast('ทำงานต่อแล้ว · กำหนดเสร็จ ' + r.ticket.due); STAFF = null; pageJob(no); });
   on('take', async () => { await run(() => api('take', { no })); toast('รับงานแล้ว'); STAFF = null; pageJob(no); });
   const planSel = $('#plan'); if (planSel) planSel.onchange = () => $('#daysBox').classList.toggle('hidden', !['wait', 'external'].includes(planSel.value));
   on('savePlan', async () => {
-    const d = { no, appoint_date: $('#appoint').value, plan: $('#plan').value, plan_days: $('#days').value, plan_note: $('#pnote').value.trim() };
-    if (!d.appoint_date || !d.plan) return toast('กรุณาระบุวันนัดและผลประเมิน');
+    const d = { no, appoint_date: $('#appoint').value, appoint_time: $('#appointT').value, plan: $('#plan').value, plan_days: $('#days').value, plan_note: $('#pnote').value.trim() };
+    if (!d.appoint_date || !d.appoint_time || !d.plan) return toast('กรุณาระบุวันนัด เวลา และผลประเมิน');
     await run(() => api('plan', d)); toast('บันทึกและแจ้งผู้แจ้งแล้ว'); pageJob(no);
   });
   let cat = t.category || '';
