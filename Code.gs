@@ -1690,14 +1690,13 @@ function generateMonthlyReport(ym, opts) {
     p.setFontFamily('Sarabun').setFontSize(opt.size || 12).setBold(!!opt.bold).setLineSpacing(1.15).setSpacingAfter(opt.after === undefined ? 4 : opt.after);
     if (opt.align) p.setAlignment(opt.align);
     if (opt.indent) p.setIndentFirstLine(opt.indent);
-    if (opt.underline) p.editAsText().setUnderline(true);
-    if (opt.highlight) p.editAsText().setBackgroundColor('#FFF3BF');
+    plainText_(p, !!opt.underline, opt.highlight ? '#FFF3BF' : null);
     return p;
   };
   const B = (text, highlight) => {
     const li = body.appendListItem(text);
     li.setGlyphType(DocumentApp.GlyphType.BULLET).setFontFamily('Sarabun').setFontSize(12).setBold(false).setSpacingAfter(2);
-    if (highlight) li.editAsText().setBackgroundColor('#FFF3BF');
+    plainText_(li, false, highlight ? '#FFF3BF' : null);
     return li;
   };
   const center = DocumentApp.HorizontalAlignment.CENTER;
@@ -1756,6 +1755,7 @@ function generateMonthlyReport(ym, opts) {
   for (let r = 0; r < sig.getNumRows(); r++) for (let c2 = 0; c2 < 2; c2++) {
     const cell = sig.getCell(r, c2);
     cell.editAsText().setFontFamily('Sarabun').setFontSize(12);
+    plainText_(cell, false, null);
     cell.getChild(0).asParagraph().setAlignment(c2 === 1 ? center : DocumentApp.HorizontalAlignment.LEFT);
   }
 
@@ -1793,7 +1793,7 @@ function generateMonthlyReport(ym, opts) {
   tRows.push(['รวมทั้งหน่วยงาน', String(s.total), String(s.closed), f(s.isoOk, s.done, s.isoPct), f(s.reworkOk, s.rework, s.reworkPct),
     String(s.rejected), s.avgDays === null ? '-' : String(s.avgDays), s.avgRating === null ? '-' : s.avgRating + ' (' + s.rated + ')',
     String(ts.rows.reduce((a2, x) => a2 + x.openNow, 0))]);
-  const tt = styleTable_(body.appendTable(tRows), [86, 40, 38, 60, 56, 44, 42, 50, 34], true);
+  const tt = styleTable_(body.appendTable(tRows), [94, 40, 38, 60, 56, 46, 42, 50, 36], true);
   // ไฮไลต์ช่องที่ต่ำกว่าเป้า ให้เห็นทันทีตอน Management Review
   ts.rows.forEach((x, i) => {
     [[3, x.isoPct], [4, x.reworkPct]].forEach(([c, v]) => { if (v !== null && v < target) tt.getCell(i + 1, c).setBackgroundColor('#FFE3E3'); });
@@ -1846,6 +1846,16 @@ function generateMonthlyReport(ym, opts) {
   return out;
 }
 
+/** ล้างขีดเส้นใต้/ไฮไลต์ที่ติดมาจากย่อหน้าก่อนหน้า แล้วตั้งตามที่ต้องการ (ข้ามข้อความว่าง) */
+function plainText_(el, underline, highlight) {
+  try {
+    const tx = el.editAsText();
+    if (!tx.getText()) return;
+    tx.setUnderline(!!underline);
+    tx.setBackgroundColor(highlight || null);
+  } catch (e) { /* ไม่ให้เรื่องสไตล์ทำรายงานล้ม */ }
+}
+
 function styleTable_(table, widths, boldLast) {
   table.setBorderColor('#8C8C8C');
   const n = table.getNumRows();
@@ -1855,6 +1865,7 @@ function styleTable_(table, widths, boldLast) {
       const cell = row.getCell(c);
       cell.setPaddingTop(2).setPaddingBottom(2).setPaddingLeft(4).setPaddingRight(4);
       cell.editAsText().setFontFamily('Sarabun').setFontSize(10.5).setBold(r === 0 || (boldLast && r === n - 1));
+      plainText_(cell, false, null);
       if (widths && widths[c]) cell.setWidth(widths[c]);
       if (r === 0) { cell.setBackgroundColor('#1F3864'); cell.editAsText().setForegroundColor('#FFFFFF'); }
       else if (boldLast && r === n - 1) cell.setBackgroundColor('#FBE4D5');
