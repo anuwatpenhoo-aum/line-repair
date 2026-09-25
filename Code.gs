@@ -4,7 +4,7 @@
  * แก้ค่าที่เปลี่ยนบ่อย (ชื่อผู้ลงนาม, SLA, อีเมล ฯลฯ) ได้ในชีต Settings โดยไม่ต้องแก้โค้ด
  * ค่าที่เป็นความลับ (LINE Channel access token) เก็บใน Script Properties เท่านั้น
  */
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 /** Google Sheet ที่เป็นฐานข้อมูลของระบบ (ใช้เมื่อสคริปต์ไม่ได้ผูกกับชีตโดยตรง) */
 const SPREADSHEET_ID_DEFAULT = '14EPKByzciXuvzXCVr0gHLHrDjpWGwA_PZXRccW7-aRw';
 
@@ -135,6 +135,11 @@ const REQ_FIELDS = [
   ['rework_pause_days', 'วันพักงาน (งานแก้)'],
   ['rework_done_at', 'แก้ไขเสร็จเมื่อ'],
   ['rework_iso', 'ISO งานแก้'],
+  ['resched_at', 'ผู้แจ้งขอเลื่อนนัดเมื่อ'],
+  ['resched_date', 'วันที่ผู้แจ้งเสนอ'],
+  ['resched_time', 'เวลาที่ผู้แจ้งเสนอ'],
+  ['resched_note', 'เหตุผลขอเลื่อนนัด'],
+  ['resched_count', 'จำนวนครั้งที่เลื่อนนัด'],
   ['pdf_id', 'ใบแจ้งซ่อม PDF (Drive id)'],
   ['reminded_at', 'แจ้งเตือนตรวจรับล่าสุด'],
   ['remark', 'หมายเหตุ']
@@ -214,6 +219,8 @@ const DEFAULT_SETTINGS = [
 const TH_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
   'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 const TH_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+/** วันในสัปดาห์ (index = ค่าจาก pattern 'u' mod 7 : จันทร์=1 … อาทิตย์=7→0) */
+const TH_DOW = ['อา.', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.'];
 
 // ===== Data.gs =====
 /** ===== การเข้าถึงข้อมูลในชีต ===== */
@@ -744,7 +751,7 @@ function doPost(e) {
     return json_(Object.assign({ ok: true }, handleApi_(body)));
   } catch (err) {
     const msg = String((err && err.message) || err);
-    if (msg !== 'SESSION_EXPIRED' && !/^(กรุณา|ไม่|เฉพาะ|รหัส|งาน|ช่าง|อาคาร|ใบแจ้ง)/.test(msg)) logError_(err, 'api ' + body.action);
+    if (msg !== 'SESSION_EXPIRED' && !/^(กรุณา|ไม่|เฉพาะ|รหัส|งาน|ช่าง|อาคาร|ใบแจ้ง|เลือก|พิมพ์|ขอเลื่อน)/.test(msg)) logError_(err, 'api ' + body.action);
     return json_({ ok: false, error: msg });
   }
 }
@@ -768,8 +775,11 @@ function handleApi_(req) {
     case 'accept': return apiAccept_(me, d);
     case 'register': return apiRegister_(me, d);
     case 'saveProfile': return apiSaveProfile_(me, d);
+    case 'reschedule': return apiReschedule_(me, d);
     // เจ้าหน้าที่
     case 'staffTickets': return apiStaffTickets_(me);
+    case 'search': return apiSearch_(me, d);
+    case 'schedule': return apiSchedule_(me, d);
     case 'assign': return apiAssign_(me, d);
     case 'take': return apiTake_(me, d.no);
     case 'plan': return apiPlan_(me, d);
@@ -790,6 +800,7 @@ function handleApi_(req) {
 function requireStaff_(me) { if (!me.staff) throw new Error('เฉพาะเจ้าหน้าที่'); }
 function requireAdmin_(me) { if (me.role !== 'admin') throw new Error('เฉพาะหัวหน้างาน/แอดมิน'); }
 function canWork_(me, t) { return me.role === 'admin' || (me.staff && t.assigned_uid === me.uid); }
+/** เปิดดูรายละเอียด: เจ้าหน้าที่ดูได้ทุกใบ (ใช้ค้นประวัติซ่อม) ส่วนการแก้ไข/ดำเนินการคุมด้วย canWork_ */
 function canView_(me, t) { return !!me.staff || t.reporter_uid === me.uid; }
 
 /* ---------- ข้อมูลที่ส่งให้หน้าเว็บ ---------- */
@@ -804,7 +815,10 @@ function toClient_(t, full, withTimeline) {
     appoint_iso: t.appoint_date ? fmt_(t.appoint_date, 'yyyy-MM-dd') : '', appoint_time: str_(t.appoint_time),
     done: thaiShort_(t.done_at), iso: t.iso, acked: !!t.ack_at,
     overdue: isOverdue_(t), rework: isRework_(t), reject_count: Number(t.reject_count || 0),
-    pause_reason: t.status === STATUS.PAUSED ? t.pause_reason : '', paused: t.status === STATUS.PAUSED ? thaiShort_(t.paused_at) : ''
+    pause_reason: t.status === STATUS.PAUSED ? t.pause_reason : '', paused: t.status === STATUS.PAUSED ? thaiShort_(t.paused_at) : '',
+    resched: !!t.resched_at, resched_when: t.resched_at ? thaiDate_(t.resched_date) + ' เวลา ' + str_(t.resched_time) + ' น.' : '',
+    resched_iso: t.resched_date ? fmt_(t.resched_date, 'yyyy-MM-dd') : '', resched_time: str_(t.resched_time),
+    resched_note: str_(t.resched_note), resched_count: Number(t.resched_count || 0)
   };
   if (full) Object.assign(o, {
     item_ids: idsOf_(t.item_ids), card_name: t.card_name, card_no: t.card_no,
@@ -989,7 +1003,13 @@ function apiPause_(me, d) {
   if (WORKING_STATUSES.indexOf(t.status) < 0) throw new Error('ไม่สามารถพักงานในสถานะ ' + t.status);
   const reason = clip_(d.reason, 300);
   if (!reason) throw new Error('กรุณาระบุเหตุผลการพักงาน');
-  updateTicket_(t, { status: STATUS.PAUSED, pause_from: t.status, paused_at: new Date(), pause_reason: reason }, 'พักงาน (หยุดนับเวลา)', me, reason);
+  const pp = { status: STATUS.PAUSED, pause_from: t.status, paused_at: new Date(), pause_reason: reason };
+  // เหตุผลพักงานบอกผลประเมินได้เอง (ใช้ติ๊กช่องในใบแจ้งซ่อม) — ช่างไม่ต้องกรอกซ้ำ
+  if (!t.plan) {
+    if (/ภายนอก|บริษัท|เคลม/.test(reason)) pp.plan = PLAN_LABEL.external;
+    else if (/อะไหล่|อุปกรณ์|จัดซื้อ/.test(reason)) pp.plan = PLAN_LABEL.wait;
+  }
+  updateTicket_(t, pp, 'พักงาน (หยุดนับเวลา)', me, reason);
   push_(t.reporter_uid, ticketFlex_(t, 'งานพักชั่วคราว', '#E67700', [{ label: 'ดูรายละเอียด', uri: liffUrl_('ticket', t.no) }],
     [['เหตุผล', reason], ['ช่าง', t.assigned_name]]));
   return { ticket: toClient_(t, false) };
@@ -1007,6 +1027,7 @@ function apiResume_(me, d) {
 function resumeTicket_(t, me) {
   const days = Math.max(0, daysBetween_(t.paused_at || new Date(), new Date()));
   const patch = { status: t.pause_from && WORKING_STATUSES.indexOf(t.pause_from) >= 0 ? t.pause_from : STATUS.ASSIGNED, paused_at: '', pause_from: '' };
+  if (!t.plan_days && (t.plan === PLAN_LABEL.wait || t.plan === PLAN_LABEL.external)) patch.plan_days = days;
   if (isRework_(t)) {
     patch.rework_pause_days = Number(t.rework_pause_days || 0) + days;
     if (t.rework_due) patch.rework_due = addDays_(t.rework_due, days);
@@ -1076,6 +1097,27 @@ function apiRegister_(me, d) {
   return { role: role };
 }
 
+/** ผู้แจ้งขอเลื่อนนัด — เสนอวัน-เวลาใหม่ ช่างเป็นคนกดยืนยัน */
+function apiReschedule_(me, d) {
+  const t = getTicket_(d.no);
+  if (t.reporter_uid !== me.uid) throw new Error('เฉพาะผู้แจ้ง');
+  if ([STATUS.PLANNED, STATUS.PAUSED].indexOf(t.status) < 0) throw new Error('ขอเลื่อนนัดได้เฉพาะงานที่นัดหมายแล้ว');
+  const date = parseDateInput_(d.date);
+  if (!date) throw new Error('กรุณาเลือกวันที่สะดวก');
+  if (!/^\d{1,2}:\d{2}$/.test(str_(d.time))) throw new Error('กรุณาเลือกเวลาที่สะดวก');
+  if (dayStart_(date) < dayStart_(new Date())) throw new Error('เลือกวันที่ย้อนหลังไม่ได้');
+  const note = clip_(d.note, 300);
+  const when = thaiDate_(date) + ' เวลา ' + str_(d.time) + ' น.';
+  updateTicket_(t, { resched_at: new Date(), resched_date: date, resched_time: str_(d.time), resched_note: note, ack_at: '', ack_by: '' },
+    'ผู้แจ้งขอเลื่อนนัด', me, 'ขอเป็น ' + when + (note ? ' | ' + note : ''));
+  const msg = ticketFlex_(t, 'ผู้แจ้งขอเลื่อนนัด', '#E67700', [{ label: 'เปิดใบงาน / ยืนยันนัดใหม่', uri: liffUrl_('job', t.no) }],
+    [['นัดเดิม', thaiShort_(t.appoint_date) + ' ' + str_(t.appoint_time) + ' น.'], ['ผู้แจ้งสะดวก', when], ['เหตุผล', note || '-'], ['ผู้แจ้ง', t.reporter_name]]);
+  if (t.assigned_uid) push_(t.assigned_uid, msg);
+  const gid = setting_('NOTIFY_GROUP_ID', '');
+  if (gid) push_(gid, msg); else if (!t.assigned_uid) pushAdmins_(msg);
+  return { ticket: toClient_(t, false) };
+}
+
 /* ---------- เจ้าหน้าที่ ---------- */
 function apiStaffTickets_(me) {
   requireStaff_(me);
@@ -1091,7 +1133,61 @@ function apiStaffTickets_(me) {
     tickets: list.map(t => toClient_(t, OPEN_STATUSES.indexOf(t.status) >= 0)),
     techs: activeStaff_().map(s => ({ uid: s.uid, name: s.name, role: s.role })),
     me: { uid: me.uid, name: me.name, role: me.role, hasSignature: !!me.staff.sig_id },
-    month: month, stats: monthStats_(month)   // รวมมาในครั้งเดียว ไม่ต้องยิง dashboard ซ้ำ
+    month: month, stats: monthStats_(month, me.role === 'admin' ? '' : me.uid)   // ช่างเห็นสถิติของตัวเอง
+  };
+}
+
+/** ค้นประวัติซ่อม: เลขครุภัณฑ์ / ชื่อผู้แจ้ง / ห้อง / เลขใบ / ข้อความในใบแจ้ง */
+function apiSearch_(me, d) {
+  requireStaff_(me);
+  const q = clip_(d.q, 100).toLowerCase();
+  if (q.length < 2) throw new Error('พิมพ์คำค้นอย่างน้อย 2 ตัวอักษร');
+  const hit = t => {
+    const f = [t.no, t.asset_code, t.reporter_name, t.department, t.phone, t.building, t.room, t.items_text, t.detail, t.cause, t.solution, t.assigned_name];
+    return f.some(v => String(v == null ? '' : v).toLowerCase().indexOf(q) >= 0);
+  };
+  const all = allTickets_().filter(hit).sort((a, b) => b.no - a.no);
+  const assets = {};
+  all.forEach(t => { const a2 = str_(t.asset_code); if (a2) assets[a2] = (assets[a2] || 0) + 1; });
+  return {
+    q: d.q, total: all.length,
+    tickets: all.slice(0, 40).map(t => toClient_(t, false)),
+    assets: Object.keys(assets).sort((a2, b2) => assets[b2] - assets[a2]).slice(0, 8).map(k => ({ code: k, n: assets[k] }))
+  };
+}
+
+/** ตารางงานช่าง: นัดหมายในช่วงวันที่ (ค่าเริ่มต้น 7 วันนับจากวันนี้) */
+function apiSchedule_(me, d) {
+  requireStaff_(me);
+  const from = parseDateInput_(d.from) || dayStart_(new Date());
+  const days = Math.min(31, Math.max(1, Number(d.days || 7)));
+  const to = addDays_(from, days);
+  const out = [];
+  for (let i = 0; i < days; i++) {
+    const day = addDays_(from, i);
+    out.push({ iso: fmt_(day, 'yyyy-MM-dd'), label: thaiShort_(day), dow: TH_DOW[Number(fmt_(day, 'u')) % 7], jobs: [] });
+  }
+  const onlyMine = me.role !== 'admin';
+  allTickets_().forEach(t => {
+    if (!t.appoint_date || t.status === STATUS.CANCELLED) return;
+    if (onlyMine && t.assigned_uid !== me.uid) return;
+    const ds = dayStart_(t.appoint_date);
+    if (ds < dayStart_(from) || ds >= dayStart_(to)) return;
+    const slot = out.find(x => x.iso === fmt_(ds, 'yyyy-MM-dd'));
+    if (!slot) return;
+    slot.jobs.push({
+      no: t.no, time: str_(t.appoint_time) || '--:--', status: t.status,
+      tech: t.assigned_name || 'ยังไม่มอบหมาย', tech_uid: t.assigned_uid || '',
+      place: [t.building, t.room ? 'ห้อง ' + t.room : ''].filter(Boolean).join(' '),
+      items: t.items_text, reporter: t.reporter_name, done: !!t.done_at,
+      resched: !!t.resched_at, resched_when: t.resched_at ? thaiShort_(t.resched_date) + ' ' + str_(t.resched_time) : ''
+    });
+  });
+  out.forEach(x => x.jobs.sort((a2, b2) => String(a2.time).localeCompare(String(b2.time))));
+  return {
+    from: fmt_(from, 'yyyy-MM-dd'), days: days, today: fmt_(new Date(), 'yyyy-MM-dd'), list: out,
+    isAdmin: !onlyMine,
+    techs: onlyMine ? [] : activeStaff_().map(x => ({ uid: x.uid, name: x.name, role: x.role }))
   };
 }
 
@@ -1123,18 +1219,25 @@ function apiPlan_(me, d) {
   const t = getTicket_(d.no);
   if (!canWork_(me, t)) throw new Error('ไม่มีสิทธิ์');
   if ([STATUS.ASSIGNED, STATUS.PLANNED].indexOf(t.status) < 0) throw new Error('ไม่สามารถนัดหมายในสถานะ ' + t.status);
-  if (!PLAN_LABEL[d.plan]) throw new Error('กรุณาเลือกผลการประเมิน');
   if (!d.appoint_date) throw new Error('กรุณาระบุวันนัดเข้าทำ');
   if (!/^\d{1,2}:\d{2}$/.test(str_(d.appoint_time))) throw new Error('กรุณาระบุเวลานัดเข้าทำ');
+  const was = t.appoint_date ? thaiShort_(t.appoint_date) + ' ' + str_(t.appoint_time) : '';
+  const moved = !!t.resched_at || (was && was !== thaiShort_(parseDateInput_(d.appoint_date)) + ' ' + str_(d.appoint_time));
   const patch = {
-    status: STATUS.PLANNED, appoint_date: parseDateInput_(d.appoint_date), appoint_time: str_(d.appoint_time), plan: PLAN_LABEL[d.plan],
-    plan_days: d.plan === 'now' ? '' : Number(d.plan_days || 0), plan_note: clip_(d.plan_note, 500),
-    planned_at: new Date(), ack_at: '', ack_by: '', ack_token: randToken_()
+    status: STATUS.PLANNED, appoint_date: parseDateInput_(d.appoint_date), appoint_time: str_(d.appoint_time),
+    plan_note: clip_(d.plan_note, 500),
+    planned_at: new Date(), ack_at: '', ack_by: '', ack_token: randToken_(),
+    resched_at: '', resched_date: '', resched_time: '', resched_note: ''   // ปิดคำขอเลื่อนนัด (ถ้ามี)
   };
-  updateTicket_(t, patch, 'บันทึกนัดหมาย/ประเมิน', me, patch.plan + (patch.plan_days ? ' ' + patch.plan_days + ' วัน' : '') + ' นัด ' + thaiShort_(patch.appoint_date) + ' ' + patch.appoint_time + ' น.');
-  const extra = [['นัดเข้าทำ', thaiDate_(t.appoint_date) + ' เวลา ' + t.appoint_time + ' น.'], ['ผลประเมิน', t.plan + (t.plan_days ? ' ภายใน ' + t.plan_days + ' วัน' : '')], ['ช่าง', t.assigned_name]];
+  // ผลประเมินไม่บังคับ — ช่างไปดูหน้างานก่อนแล้วค่อยบันทึกได้
+  if (PLAN_LABEL[d.plan]) { patch.plan = PLAN_LABEL[d.plan]; patch.plan_days = d.plan === 'now' ? '' : Number(d.plan_days || 0); }
+  if (moved) patch.resched_count = Number(t.resched_count || 0) + 1;
+  updateTicket_(t, patch, moved ? 'เลื่อนนัดหมาย' : 'บันทึกนัดหมาย', me,
+    (was ? 'จาก ' + was + ' → ' : '') + thaiShort_(patch.appoint_date) + ' ' + patch.appoint_time + ' น.' + (patch.plan ? ' | ' + patch.plan : ''));
+  const extra = [['นัดเข้าทำ', thaiDate_(t.appoint_date) + ' เวลา ' + t.appoint_time + ' น.'], ['ช่าง', t.assigned_name]];
+  if (t.plan) extra.push(['ผลประเมิน', t.plan + (t.plan_days ? ' ภายใน ' + t.plan_days + ' วัน' : '')]);
   if (t.plan_note) extra.push(['หมายเหตุ', t.plan_note]);
-  push_(t.reporter_uid, ticketFlex_(t, 'นัดหมายเข้าดำเนินการ', '#1C7ED6', [
+  push_(t.reporter_uid, ticketFlex_(t, moved ? 'เลื่อนนัดหมายใหม่' : 'นัดหมายเข้าดำเนินการ', '#1C7ED6', [
     { label: 'รับทราบ', data: 'act=ack&no=' + t.no + '&t=' + t.ack_token, displayText: 'รับทราบนัดหมาย #' + t.no },
     { label: 'ดูรายละเอียด', uri: liffUrl_('ticket', t.no) }
   ], extra));
@@ -1162,6 +1265,9 @@ function apiComplete_(me, d) {
     asset_code: clip_(d.asset_code, 80), category: d.category, done_at: now,
     accept_result: '', accept_reason: '', reminded_at: ''
   };
+  // ผลประเมิน: ช่างเลือกตอนปิดงานได้ ถ้าไม่เลือกและยังว่าง = ซ่อมได้ ดำเนินการทันที
+  if (PLAN_LABEL[d.plan]) { patch.plan = PLAN_LABEL[d.plan]; patch.plan_days = d.plan === 'now' ? '' : Number(d.plan_days || t.plan_days || 0); }
+  else if (!t.plan) patch.plan = PLAN_LABEL.now;
   const rework = isRework_(t);
   let isoTxt;
   if (!rework) {
@@ -1220,7 +1326,7 @@ function apiSaveSignature_(me, d) {
 function apiDashboard_(me, d) {
   requireStaff_(me);
   const month = d.month || fmt_(new Date(), 'yyyy-MM');
-  return { month: month, stats: monthStats_(month) };
+  return { month: month, stats: monthStats_(month, me.role === 'admin' ? '' : me.uid) };
 }
 
 /* ---------- LINE webhook ---------- */
@@ -1430,8 +1536,9 @@ function ticketsOfMonth_(ym) {
 function catOf_(t) { return t.category || t.category_auto || 'ไม่ระบุ'; }
 function round1_(x) { return Math.round(x * 10) / 10; }
 
-function monthStats_(ym) {
-  const list = ticketsOfMonth_(ym);
+/** uid = จำกัดเฉพาะงานของช่างคนนั้น (ใช้กับหน้าเจ้าหน้าที่ของช่าง) */
+function monthStats_(ym, uid) {
+  const list = ticketsOfMonth_(ym).filter(t => !uid || t.assigned_uid === uid);
   const s = { ym: ym, total: list.length, byCat: {}, byStatus: {}, byBuilding: {}, byItem: {},
     closed: 0, open: 0, done: 0, isoOk: 0, isoPct: null, avgDays: null, avgResponseH: null,
     rejected: 0, avgRating: null, rated: 0,
@@ -1464,6 +1571,26 @@ function monthStats_(ym) {
   if (nResp) s.avgResponseH = round1_(sumResp / nResp);
   if (s.rated) s.avgRating = round1_(sumRating / s.rated);
   return s;
+}
+
+/** KPI แยกรายช่าง — ใช้ทั้งหน้าภาพรวมและรายงานเดือน (คำนวณด้วย monthStats_ เดียวกับ KPI หน่วยงาน)
+ *  รวมช่างที่ปิดใช้งานไปแล้วด้วย ถ้ามีงานในเดือนนั้น เพื่อให้ยอดรวมครบ */
+function techStats_(ym) {
+  const monthList = ticketsOfMonth_(ym);
+  const all = allTickets_();
+  const isActive = st => st.active === true || String(st.active).toUpperCase() === 'TRUE';
+  const rows = allStaff_().filter(st => isActive(st) || monthList.some(t => t.assigned_uid === st.uid)).map(st => {
+    const k = monthStats_(ym, st.uid);
+    return {
+      uid: st.uid, name: st.name, role: st.role, active: isActive(st),
+      openNow: all.filter(t => t.assigned_uid === st.uid && OPEN_STATUSES.indexOf(t.status) >= 0).length,
+      month: k.total, closed: k.closed, done: k.done, isoOk: k.isoOk, isoPct: k.isoPct, avgDays: k.avgDays,
+      rework: k.rework, reworkOk: k.reworkOk, reworkPct: k.reworkPct, rejected: k.rejected,
+      rating: k.avgRating, rated: k.rated
+    };
+  }).filter(x => x.month || x.openNow || (x.active && x.role === 'tech'));
+  const unassigned = monthList.filter(t => !t.assigned_uid).length;
+  return { rows: rows.sort((a, b) => b.month - a.month || String(a.name).localeCompare(String(b.name))), unassigned: unassigned };
 }
 
 function ymShift_(ym, n) {
@@ -1651,6 +1778,29 @@ function generateMonthlyReport(ym, opts) {
   ];
   styleTable_(body.appendTable(kpiRows), [210, 80, 80, 70]);
 
+  // KPI แยกรายช่าง (ตัวเลขชุดเดียวกับตาราง "ตามช่างผู้ปฏิบัติงาน" ในหน้าภาพรวม)
+  const ts = techStats_(ym);
+  P('');
+  P('ตัวชี้วัดแยกตามช่างผู้ปฏิบัติงาน', { bold: true, size: 14, align: center, after: 2 });
+  P('(ประจำเดือน' + ymThai_(ym) + ' · เป้าหมาย KPI ≥ ' + target + '%)', { align: center, after: 8 });
+  const f = (ok, n, pctV) => n ? pctV + '% (' + ok + '/' + n + ')' : '-';
+  const tRows = [['ช่าง', 'งานเดือนนี้', 'ปิดแล้ว', 'KPI งานใหม่', 'KPI งานแก้', 'ถูกส่งกลับแก้ (ใบ)', 'เวลาเฉลี่ย (วัน)', 'ความพึงพอใจ', 'คงค้าง*']];
+  ts.rows.forEach(x => tRows.push([
+    x.name + (x.active ? '' : ' (พ้นหน้าที่)'), String(x.month), String(x.closed), f(x.isoOk, x.done, x.isoPct), f(x.reworkOk, x.rework, x.reworkPct),
+    String(x.rejected), x.avgDays === null ? '-' : String(x.avgDays), x.rating === null ? '-' : x.rating + ' (' + x.rated + ')', String(x.openNow)
+  ]));
+  if (ts.unassigned) tRows.push(['ยังไม่มอบหมาย', String(ts.unassigned), '-', '-', '-', '-', '-', '-', '-']);
+  tRows.push(['รวมทั้งหน่วยงาน', String(s.total), String(s.closed), f(s.isoOk, s.done, s.isoPct), f(s.reworkOk, s.rework, s.reworkPct),
+    String(s.rejected), s.avgDays === null ? '-' : String(s.avgDays), s.avgRating === null ? '-' : s.avgRating + ' (' + s.rated + ')',
+    String(ts.rows.reduce((a2, x) => a2 + x.openNow, 0))]);
+  const tt = styleTable_(body.appendTable(tRows), [86, 40, 38, 60, 56, 44, 42, 50, 34], true);
+  // ไฮไลต์ช่องที่ต่ำกว่าเป้า ให้เห็นทันทีตอน Management Review
+  ts.rows.forEach((x, i) => {
+    [[3, x.isoPct], [4, x.reworkPct]].forEach(([c, v]) => { if (v !== null && v < target) tt.getCell(i + 1, c).setBackgroundColor('#FFE3E3'); });
+    if (x.rating !== null && x.rating < 4) tt.getCell(i + 1, 7).setBackgroundColor('#FFE3E3');
+  });
+  P('* คงค้าง = งานที่ยังไม่ปิด ณ วันที่จัดทำรายงาน (ทุกเดือน) · KPI นับจากวันแจ้งถึงวันที่ช่างปิดงานครั้งแรก หักวันพักงานรออะไหล่/บริษัทภายนอก · ช่องสีแดง = ต่ำกว่าเป้าหมาย', { size: 9.5 });
+
   P('');
   P('สรุปงานแจ้งซ่อมแยกตามอาคาร', { bold: true, size: 14, align: center, after: 2 });
   P('(ประจำเดือน' + ymThai_(ym) + ')', { align: center, after: 8 });
@@ -1782,7 +1932,7 @@ function buildAppendix_(ym, list, folder) {
 /** ===== หน้าภาพรวม (Dashboard) สำหรับเจ้าหน้าที่ — รวมทุกอย่างไว้จุดเดียว ===== */
 
 function apiOverview_(me, d) {
-  requireStaff_(me);
+  requireAdmin_(me);   // ภาพรวมทั้งหน่วยงาน (KPI/เทียบช่าง/รายงาน) เฉพาะหัวหน้างาน
   const nowYm = fmt_(new Date(), 'yyyy-MM');
   const ym = /^\d{4}-\d{2}$/.test(str_(d.month)) ? d.month : nowYm;
   const all = allTickets_();
@@ -1799,22 +1949,11 @@ function apiOverview_(me, d) {
     if (t.done_at && fmt_(t.done_at, 'yyyy-MM') === ym) daily[Number(fmt_(t.done_at, 'd')) - 1].done++;
   });
 
-  // ตามช่าง
-  const monthList = ticketsOfMonth_(ym);
-  const techs = activeStaff_().map(st => {
-    const mine = monthList.filter(t => t.assigned_uid === st.uid);
-    const done = mine.filter(t => t.done_at);
-    const rated = mine.filter(t => Number(t.rating) > 0);
-    return {
-      name: st.name, role: st.role,
-      openNow: all.filter(t => t.assigned_uid === st.uid && OPEN_STATUSES.indexOf(t.status) >= 0).length,
-      month: mine.length,
-      closed: mine.filter(t => t.status === STATUS.CLOSED).length,
-      isoPct: done.filter(t => t.iso).length ? round1_(done.filter(t => t.iso === 'ทัน').length * 100 / done.filter(t => t.iso).length) : null,
-      rework: mine.filter(t => Number(t.reject_count) > 0).length,
-      rating: rated.length ? round1_(rated.reduce((a, t) => a + Number(t.rating), 0) / rated.length) : null
-    };
-  }).filter(x => x.month || x.openNow || x.role === 'tech');
+  // ตามช่าง — ใช้ชุดคำนวณเดียวกับรายงานเดือน (techStats_) ตัวเลขบนจอกับในรายงานจึงตรงกันเสมอ
+  const techs = techStats_(ym).rows.map(x => ({
+    name: x.name + (x.active ? '' : ' (พ้นหน้าที่)'), role: x.role, openNow: x.openNow, month: x.month, closed: x.closed,
+    isoPct: x.isoPct, reworkPct: x.reworkPct, rework: x.rejected, rating: x.rating
+  }));
 
   // งานที่ต้องติดตาม (ทุกเดือน ณ ปัจจุบัน)
   const today = dayStart_(new Date()).getTime();
