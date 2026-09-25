@@ -4,7 +4,7 @@
  * แก้ค่าที่เปลี่ยนบ่อย (ชื่อผู้ลงนาม, SLA, อีเมล ฯลฯ) ได้ในชีต Settings โดยไม่ต้องแก้โค้ด
  * ค่าที่เป็นความลับ (LINE Channel access token) เก็บใน Script Properties เท่านั้น
  */
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.5.0';
 /** Google Sheet ที่เป็นฐานข้อมูลของระบบ (ใช้เมื่อสคริปต์ไม่ได้ผูกกับชีตโดยตรง) */
 const SPREADSHEET_ID_DEFAULT = '14EPKByzciXuvzXCVr0gHLHrDjpWGwA_PZXRccW7-aRw';
 
@@ -13,6 +13,7 @@ const SH = {
   LOG: 'StatusLog',
   STAFF: 'Staff',
   USERS: 'ผู้แจ้ง',
+  KB: 'คลังความรู้',
   SET: 'Settings',
   LISTS: 'Lists',
   RPT: '_ReportData',
@@ -166,6 +167,26 @@ const STAFF_FIELDS = [
   ['registered_at', 'ลงทะเบียนเมื่อ']
 ];
 
+/** คลังความรู้ / แก้ปัญหาเบื้องต้น (รูปเก็บใน Drive โฟลเดอร์ คลังความรู้/<รหัสบทความ>) */
+const KB_FIELDS = [
+  ['id', 'รหัสบทความ'],
+  ['title', 'หัวข้อ'],
+  ['category', 'หมวด'],
+  ['audience', 'ผู้อ่าน (all=ทุกคน / staff=เฉพาะช่าง)'],
+  ['summary', 'อาการ/สรุปสั้น'],
+  ['body', 'ขั้นตอนการแก้ไข'],
+  ['keywords', 'คำค้นเพิ่มเติม'],
+  ['photo_ids', 'รูป (Drive id)'],
+  ['from_no', 'จากใบแจ้งซ่อม'],
+  ['author_uid', 'ผู้เขียน (LINE userId)'],
+  ['author_name', 'ผู้เขียน'],
+  ['created_at', 'สร้างเมื่อ'],
+  ['updated_at', 'แก้ไขล่าสุด'],
+  ['updated_by', 'แก้ไขโดย'],
+  ['views', 'เปิดอ่าน (ครั้ง)'],
+  ['active', 'แสดง (TRUE/FALSE)']
+];
+
 /** ผู้แจ้ง (ลงทะเบียนครั้งแรกครั้งเดียว ผูก LINE กับข้อมูลบุคลากร) */
 const USER_FIELDS = [
   ['uid', 'LINE userId'],
@@ -208,7 +229,12 @@ const DEFAULT_SETTINGS = [
   ['LOGIN_CHANNEL_ID', '2011696676', 'Channel ID ของ LINE Login channel (ใช้ตรวจ ID token)'],
   ['WEB_BASE_URL', 'https://anuwatpenhoo-aum.github.io/line-repair/', 'URL ของหน้าเว็บ (GitHub Pages) เช่น https://xxx.github.io/line-repair/'],
   ['RICHMENU_USER_ID', '', 'Rich menu สำหรับผู้ใช้ทั่วไป (สร้างอัตโนมัติ)'],
-  ['RICHMENU_STAFF_ID', '', 'Rich menu สำหรับเจ้าหน้าที่ (สร้างอัตโนมัติ)'],
+  ['RICHMENU_STAFF_ID', '', 'Rich menu เจ้าหน้าที่ชุดเดิม (เลิกใช้ ถูกแทนด้วย 2 ชุดด้านล่าง)'],
+  ['KB_CATEGORIES', 'คอมพิวเตอร์,ปริ้นเตอร์/สแกนเนอร์,อินเทอร์เน็ต/WiFi,โปรแกรม/Windows,อีเมล/บัญชีผู้ใช้,กล้อง CCTV,บัตร/สแกนนิ้ว,อื่นๆ', 'หมวดของคลังความรู้ (คั่นด้วยจุลภาค เรียงตามที่ต้องการให้แสดง)'],
+  ['KB_NEXT_NO', 1, 'เลขบทความถัดไป (ระบบใช้)'],
+  ['APPOINT_GAP_MIN', 60, 'นัดของช่างคนเดียวกันต้องห่างกันอย่างน้อยกี่นาที (กันนัดซ้อน) · 0 = ห้ามแค่เวลาเดียวกันเป๊ะ'],
+  ['RICHMENU_TECH_ID', '', 'Rich menu สำหรับช่าง (สร้างอัตโนมัติ)'],
+  ['RICHMENU_ADMIN_ID', '', 'Rich menu สำหรับแอดมิน (สร้างอัตโนมัติ)'],
   ['ROOT_FOLDER_ID', '', 'โฟลเดอร์หลักใน Drive (สร้างอัตโนมัติ)'],
   ['TICKET_TEMPLATE_ID', '', 'Google Doc เทมเพลตใบแจ้งซ่อม (สร้างอัตโนมัติ)'],
   ['REPORT_TEMPLATE_ID', '', 'Google Doc เทมเพลตรายงาน (สร้างอัตโนมัติ)'],
@@ -298,13 +324,28 @@ function dropMemo_(shName) {
   if (shName === SH.REQ) allTickets_._m = null;
   if (shName === SH.STAFF) allStaff_._m = null;
   if (shName === SH.USERS) allUsers_._m = null;
+  if (shName === SH.KB) allKb_._m = null;
 }
 
 /** ===== Tickets ===== */
 function allTickets_() {
   if (allTickets_._m) return allTickets_._m;
-  return (allTickets_._m = readAll_(SH.REQ, REQ_FIELDS).filter(t => t.no !== '' && t.no !== null));
+  return (allTickets_._m = readAll_(SH.REQ, REQ_FIELDS).filter(t => t.no !== '' && t.no !== null).map(t => {
+    // Google Sheets แปลง "16:00" เป็นค่าเวลา (วันที่ 30/12/1899) — อ่านกลับให้เป็น "16:00" เหมือนตอนบันทึก
+    t.appoint_time = hhmm_(t.appoint_time); t.resched_time = hhmm_(t.resched_time);
+    return t;
+  }));
 }
+/** ค่าเวลาในชีต → "HH:mm" (รับได้ทั้ง Date และข้อความ) */
+function hhmm_(v) {
+  if (v && typeof v === 'object' && typeof v.getTime === 'function') return fmt_(v, 'HH:mm');
+  const m = str_(v).match(/^(\d{1,2}):(\d{2})/);
+  return m ? ('0' + m[1]).slice(-2) + ':' + m[2] : str_(v);
+}
+/** นาทีนับจากเที่ยงคืน */
+function mins_(hm) { const m = String(hm || '').match(/^(\d{1,2}):(\d{2})/); return m ? Number(m[1]) * 60 + Number(m[2]) : null; }
+/** 23 กันยายน 2569 เวลา 16:00 น. */
+function thaiWhen_(d, hm) { return d ? thaiDate_(d) + (hm ? ' เวลา ' + hm + ' น.' : '') : ''; }
 function getTicket_(no) {
   no = Number(no);
   const t = allTickets_().find(x => Number(x.no) === no);
@@ -776,10 +817,19 @@ function handleApi_(req) {
     case 'register': return apiRegister_(me, d);
     case 'saveProfile': return apiSaveProfile_(me, d);
     case 'reschedule': return apiReschedule_(me, d);
+    // คลังความรู้
+    case 'kbList': return apiKbList_(me, d);
+    case 'kbGet': return apiKbGet_(me, d);
+    case 'kbPhoto': return apiKbPhoto_(me, d);
+    case 'kbSave': return apiKbSave_(me, d);
+    case 'kbHide': return apiKbHide_(me, d);
     // เจ้าหน้าที่
     case 'staffTickets': return apiStaffTickets_(me);
     case 'search': return apiSearch_(me, d);
     case 'schedule': return apiSchedule_(me, d);
+    case 'staffList': return apiStaffList_(me);
+    case 'staffUpdate': return apiStaffUpdate_(me, d);
+    case 'staffCode': return apiStaffCode_(me, d);
     case 'assign': return apiAssign_(me, d);
     case 'take': return apiTake_(me, d.no);
     case 'plan': return apiPlan_(me, d);
@@ -811,12 +861,12 @@ function toClient_(t, full, withTimeline) {
     building: t.building, floor: t.floor, room: t.room,
     items_text: t.items_text, detail: t.detail, category: t.category || t.category_auto,
     assigned_name: t.assigned_name, assigned_uid: t.assigned_uid,
-    due: thaiShort_(curDue_(t)), appoint: thaiShort_(t.appoint_date) + (t.appoint_time ? ' ' + t.appoint_time + ' น.' : ''),
+    due: thaiShort_(curDue_(t)), appoint: thaiWhen_(t.appoint_date, t.appoint_time),
     appoint_iso: t.appoint_date ? fmt_(t.appoint_date, 'yyyy-MM-dd') : '', appoint_time: str_(t.appoint_time),
     done: thaiShort_(t.done_at), iso: t.iso, acked: !!t.ack_at,
     overdue: isOverdue_(t), rework: isRework_(t), reject_count: Number(t.reject_count || 0),
     pause_reason: t.status === STATUS.PAUSED ? t.pause_reason : '', paused: t.status === STATUS.PAUSED ? thaiShort_(t.paused_at) : '',
-    resched: !!t.resched_at, resched_when: t.resched_at ? thaiDate_(t.resched_date) + ' เวลา ' + str_(t.resched_time) + ' น.' : '',
+    resched: !!t.resched_at, resched_when: t.resched_at ? thaiWhen_(t.resched_date, t.resched_time) : '',
     resched_iso: t.resched_date ? fmt_(t.resched_date, 'yyyy-MM-dd') : '', resched_time: str_(t.resched_time),
     resched_note: str_(t.resched_note), resched_count: Number(t.resched_count || 0)
   };
@@ -849,7 +899,7 @@ function apiInit_(me) {
     lists: { buildings: buildings_(), groups: groups_(), categories: categories_(), colors: lists_().colors, options: options_() },
     org: setting_('ORG_NAME', ''), client: setting_('CLIENT_NAME', ''),
     docCode: setting_('DOC_CODE', ''), docRev: setting_('DOC_REV', ''),
-    pdpa: setting_('PDPA_TEXT', ''), slaDays: Number(setting_('SLA_DAYS', 3))
+    pdpa: setting_('PDPA_TEXT', ''), slaDays: Number(setting_('SLA_DAYS', 3)), appointGap: appointGap_()
   };
 }
 
@@ -1092,9 +1142,20 @@ function apiRegister_(me, d) {
   if (existing) updateObj_(SH.STAFF, STAFF_FIELDS, existing._row, patch);
   else appendObj_(SH.STAFF, STAFF_FIELDS, Object.assign(patch, { registered_at: new Date() }));
   log_('', 'ลงทะเบียนเจ้าหน้าที่ (' + role + ')', '', '', { uid: me.uid, name: patch.name }, '');
-  const staffMenu = setting_('RICHMENU_STAFF_ID', '');
-  if (staffMenu) { try { lineApi_('/v2/bot/user/' + me.uid + '/richmenu/' + staffMenu, null); } catch (e) { logError_(e, 'link richmenu'); } }
+  linkMenu_(me.uid, role, true);   // เมนูช่าง หรือ เมนูแอดมิน ตามรหัสที่ใช้
   return { role: role };
+}
+
+function appointGap_() { return Math.max(0, Number(setting_('APPOINT_GAP_MIN', 60)) || 0); }
+/** หางานอื่นของช่างคนเดียวกันที่นัดวันเดียวกัน ในช่วงเวลาชนกัน (ยังไม่ได้ทำ) */
+function appointClash_(t, date, hm) {
+  const gap = appointGap_(), want = mins_(hm);
+  if (!t.assigned_uid || !date || want === null) return null;
+  const day = fmt_(date, 'yyyy-MM-dd');
+  return allTickets_().find(x => Number(x.no) !== Number(t.no) && x.assigned_uid === t.assigned_uid &&
+    [STATUS.PLANNED, STATUS.PAUSED, STATUS.REJECTED].indexOf(x.status) >= 0 && x.appoint_date &&
+    fmt_(x.appoint_date, 'yyyy-MM-dd') === day && mins_(x.appoint_time) !== null &&
+    Math.abs(mins_(x.appoint_time) - want) < Math.max(1, gap)) || null;
 }
 
 /** ผู้แจ้งขอเลื่อนนัด — เสนอวัน-เวลาใหม่ ช่างเป็นคนกดยืนยัน */
@@ -1111,7 +1172,7 @@ function apiReschedule_(me, d) {
   updateTicket_(t, { resched_at: new Date(), resched_date: date, resched_time: str_(d.time), resched_note: note, ack_at: '', ack_by: '' },
     'ผู้แจ้งขอเลื่อนนัด', me, 'ขอเป็น ' + when + (note ? ' | ' + note : ''));
   const msg = ticketFlex_(t, 'ผู้แจ้งขอเลื่อนนัด', '#E67700', [{ label: 'เปิดใบงาน / ยืนยันนัดใหม่', uri: liffUrl_('job', t.no) }],
-    [['นัดเดิม', thaiShort_(t.appoint_date) + ' ' + str_(t.appoint_time) + ' น.'], ['ผู้แจ้งสะดวก', when], ['เหตุผล', note || '-'], ['ผู้แจ้ง', t.reporter_name]]);
+    [['นัดเดิม', thaiWhen_(t.appoint_date, t.appoint_time)], ['ผู้แจ้งสะดวก', when], ['เหตุผล', note || '-'], ['ผู้แจ้ง', t.reporter_name]]);
   if (t.assigned_uid) push_(t.assigned_uid, msg);
   const gid = setting_('NOTIFY_GROUP_ID', '');
   if (gid) push_(gid, msg); else if (!t.assigned_uid) pushAdmins_(msg);
@@ -1180,7 +1241,7 @@ function apiSchedule_(me, d) {
       tech: t.assigned_name || 'ยังไม่มอบหมาย', tech_uid: t.assigned_uid || '',
       place: [t.building, t.room ? 'ห้อง ' + t.room : ''].filter(Boolean).join(' '),
       items: t.items_text, reporter: t.reporter_name, done: !!t.done_at,
-      resched: !!t.resched_at, resched_when: t.resched_at ? thaiShort_(t.resched_date) + ' ' + str_(t.resched_time) : ''
+      resched: !!t.resched_at, resched_when: t.resched_at ? thaiWhen_(t.resched_date, t.resched_time) : ''
     });
   });
   out.forEach(x => x.jobs.sort((a2, b2) => String(a2.time).localeCompare(String(b2.time))));
@@ -1221,6 +1282,10 @@ function apiPlan_(me, d) {
   if ([STATUS.ASSIGNED, STATUS.PLANNED].indexOf(t.status) < 0) throw new Error('ไม่สามารถนัดหมายในสถานะ ' + t.status);
   if (!d.appoint_date) throw new Error('กรุณาระบุวันนัดเข้าทำ');
   if (!/^\d{1,2}:\d{2}$/.test(str_(d.appoint_time))) throw new Error('กรุณาระบุเวลานัดเข้าทำ');
+  d.appoint_time = hhmm_(d.appoint_time);
+  const clash = appointClash_(t, parseDateInput_(d.appoint_date), d.appoint_time);
+  if (clash) throw new Error('ช่าง' + (t.assigned_name ? ' ' + t.assigned_name : '') + ' มีนัดงาน #' + clash.no + ' เวลา ' + clash.appoint_time +
+    ' น. อยู่แล้ว — นัดของช่างคนเดียวกันต้องห่างกันอย่างน้อย ' + appointGap_() + ' นาที');
   const was = t.appoint_date ? thaiShort_(t.appoint_date) + ' ' + str_(t.appoint_time) : '';
   const moved = !!t.resched_at || (was && was !== thaiShort_(parseDateInput_(d.appoint_date)) + ' ' + str_(d.appoint_time));
   const patch = {
@@ -1255,6 +1320,7 @@ function apiComplete_(me, d) {
   if (!str_(d.cause)) throw new Error('กรุณากรอกสาเหตุที่พบ');
   if (!str_(d.solution)) throw new Error('กรุณากรอกแนวทางการแก้ไข');
   if (categories_().indexOf(d.category) < 0) throw new Error('กรุณาเลือกประเภทของปัญหา');
+  if (!str_(d.asset_code)) throw new Error('กรุณากรอกรหัสครุภัณฑ์ (งานที่ไม่มีครุภัณฑ์ ให้ใส่ -)');
   const staffRec = staffByUid_(t.assigned_uid);
   if (!staffRec || !staffRec.sig_id) throw new Error('ช่างผู้ปฏิบัติงานยังไม่ได้บันทึกลายเซ็น (เมนู "ลายเซ็นของฉัน")');
   const now = new Date();
@@ -2029,6 +2095,233 @@ function apiGenerateReport_(me, d) {
   return out;
 }
 
+// ===== Team.gs =====
+/** ===== จัดการเจ้าหน้าที่ (แอดมินเท่านั้น) + Rich menu ตามบทบาท ===== */
+
+/** Rich menu ของแต่ละบทบาท (ถ้ายังไม่ได้สร้างชุดใหม่ ใช้เมนูเจ้าหน้าที่ชุดเดิมไปก่อน) */
+function menuIdFor_(role) {
+  const legacy = setting_('RICHMENU_STAFF_ID', '');
+  if (role === 'admin') return setting_('RICHMENU_ADMIN_ID', '') || legacy;
+  if (role === 'tech') return setting_('RICHMENU_TECH_ID', '') || legacy;
+  return '';
+}
+
+/** ผูกเมนูให้ตรงบทบาท: ช่าง/แอดมินที่ใช้งานอยู่ → เมนูของบทบาท, นอกนั้น → กลับไปเมนูผู้ใช้ทั่วไป (ค่าเริ่มต้น) */
+function linkMenu_(uid, role, active) {
+  if (!uid) return;
+  try {
+    const id = active ? menuIdFor_(role) : '';
+    if (id) lineApi_('/v2/bot/user/' + uid + '/richmenu/' + id, null);
+    else lineApi_('/v2/bot/user/' + uid + '/richmenu', null, 'delete');
+  } catch (e) { logError_(e, 'link richmenu ' + uid); }
+}
+
+function isActive_(s) { return s.active === true || String(s.active).toUpperCase() === 'TRUE'; }
+
+/** รายชื่อเจ้าหน้าที่ทั้งหมด (รวมที่ปิดใช้งาน) + รหัสลงทะเบียน */
+function apiStaffList_(me) {
+  requireAdmin_(me);
+  const all = allTickets_();
+  const ym = fmt_(new Date(), 'yyyy-MM');
+  const list = allStaff_().map(s => ({
+    uid: s.uid, name: str_(s.name), role: s.role === 'admin' ? 'admin' : 'tech', active: isActive_(s),
+    phone: str_(s.phone), hasSignature: !!s.sig_id, registered: thaiShort_(s.registered_at), me: s.uid === me.uid,
+    openNow: all.filter(t => t.assigned_uid === s.uid && OPEN_STATUSES.indexOf(t.status) >= 0).length,
+    month: all.filter(t => t.assigned_uid === s.uid && fmt_(t.created_at, 'yyyy-MM') === ym).length
+  })).sort((a, b) => (b.active - a.active) || (a.role === b.role ? 0 : a.role === 'admin' ? -1 : 1) || a.name.localeCompare(b.name));
+  return {
+    staff: list,
+    codes: { tech: str_(setting_('REGISTER_CODE_TECH', '')), admin: str_(setting_('REGISTER_CODE_ADMIN', '')) },
+    liffId: str_(setting_('LIFF_ID', ''))
+  };
+}
+
+/** แก้ชื่อ / เบอร์ / บทบาท / เปิด-ปิดใช้งาน */
+function apiStaffUpdate_(me, d) {
+  requireAdmin_(me);
+  const s = allStaff_().find(x => x.uid === str_(d.uid));
+  if (!s) throw new Error('ไม่พบเจ้าหน้าที่');
+  const cur = { role: s.role === 'admin' ? 'admin' : 'tech', active: isActive_(s) };
+  const next = {
+    role: d.role === undefined ? cur.role : (d.role === 'admin' ? 'admin' : d.role === 'tech' ? 'tech' : ''),
+    active: d.active === undefined ? cur.active : !!d.active
+  };
+  if (!next.role) throw new Error('บทบาทไม่ถูกต้อง');
+  // กันระบบไม่มีแอดมินเหลือ (จะไม่มีใครเข้ามาจัดการได้อีก)
+  const losesAdmin = cur.role === 'admin' && cur.active && (next.role !== 'admin' || !next.active);
+  if (losesAdmin && !allStaff_().some(x => x.uid !== s.uid && x.role === 'admin' && isActive_(x))) {
+    throw new Error('ไม่สามารถลดสิทธิ์หรือปิดใช้งานแอดมินคนสุดท้ายได้ — เพิ่มแอดมินอีกคนก่อน');
+  }
+  const patch = { role: next.role, active: next.active };
+  if (d.name !== undefined) { const n = clip_(d.name, 100); if (!n) throw new Error('กรุณากรอกชื่อ-นามสกุล'); patch.name = n; }
+  if (d.phone !== undefined) patch.phone = clip_(d.phone, 30);
+  updateObj_(SH.STAFF, STAFF_FIELDS, s._row, patch);
+
+  const changes = [];
+  if (patch.name && patch.name !== str_(s.name)) changes.push('ชื่อ "' + str_(s.name) + '" → "' + patch.name + '"');
+  if (patch.phone !== undefined && patch.phone !== str_(s.phone)) changes.push('เบอร์ ' + (patch.phone || '-'));
+  if (next.role !== cur.role) changes.push('บทบาท ' + roleTh_(cur.role) + ' → ' + roleTh_(next.role));
+  if (next.active !== cur.active) changes.push(next.active ? 'เปิดใช้งาน' : 'ปิดใช้งาน');
+  if (changes.length) log_('', 'จัดการเจ้าหน้าที่: ' + (patch.name || s.name), '', '', me, changes.join(' | '));
+  // สลับ Rich menu ให้ตรงบทบาทใหม่ทันที
+  if (next.role !== cur.role || next.active !== cur.active) linkMenu_(s.uid, next.role, next.active);
+  const open = allTickets_().filter(t => t.assigned_uid === s.uid && OPEN_STATUSES.indexOf(t.status) >= 0).length;
+  return { ok: true, openNow: open, changed: changes };
+}
+
+/** สร้างรหัสลงทะเบียนใหม่ (เช่น รหัสหลุด / มีคนลาออก) — รหัสเก่าใช้ไม่ได้ทันที คนที่ลงทะเบียนแล้วไม่กระทบ */
+function apiStaffCode_(me, d) {
+  requireAdmin_(me);
+  const kind = d.kind === 'admin' ? 'admin' : 'tech';
+  const key = kind === 'admin' ? 'REGISTER_CODE_ADMIN' : 'REGISTER_CODE_TECH';
+  const code = (kind === 'admin' ? 'A' : 'T') + Math.floor(100000 + Math.random() * 900000);
+  setSetting_(key, code);
+  log_('', 'สร้างรหัสลงทะเบียน' + roleTh_(kind) + 'ใหม่', '', '', me, '');
+  return { kind: kind, code: code };
+}
+
+function roleTh_(r) { return r === 'admin' ? 'แอดมิน' : 'ช่าง'; }
+
+// ===== Kb.gs =====
+/** ===== คลังความรู้ / แก้ปัญหาเบื้องต้น =====
+ * อ่าน: ผู้ใช้ทุกคน (บทความ "เฉพาะช่าง" เห็นเฉพาะเจ้าหน้าที่ — คัดออกที่เซิร์ฟเวอร์)
+ * เขียน: ช่าง + แอดมิน · แก้ไข/ซ่อน: ผู้เขียน หรือ แอดมิน
+ * รูปเก็บใน Drive: ระบบแจ้งซ่อม LINE/คลังความรู้/<รหัสบทความ>/
+ */
+const KB_MAX_PHOTOS = 6;
+
+function allKb_() {
+  if (allKb_._m) return allKb_._m;
+  if (!ss_().getSheetByName(SH.KB)) return [];
+  return (allKb_._m = readAll_(SH.KB, KB_FIELDS).filter(k => str_(k.id)));
+}
+function kbCategories_() { return str_(setting_('KB_CATEGORIES', 'อื่นๆ')).split(',').map(s => s.trim()).filter(Boolean); }
+function kbVisible_(me, k) { return isActive_(k) && (k.audience !== 'staff' || !!me.staff); }
+function kbCanEdit_(me, k) { return !!me.staff && (me.role === 'admin' || k.author_uid === me.uid); }
+function kbFind_(me, id) {
+  const k = allKb_().find(x => str_(x.id) === str_(id));
+  if (!k || !kbVisible_(me, k)) throw new Error('ไม่พบบทความนี้');
+  return k;
+}
+function kbOut_(k, full, me) {
+  const o = {
+    id: str_(k.id), title: str_(k.title), category: str_(k.category), audience: k.audience === 'staff' ? 'staff' : 'all',
+    summary: str_(k.summary), photos: idsOf_(k.photo_ids).length, views: Number(k.views || 0),
+    updated: thaiShort_(k.updated_at || k.created_at)
+  };
+  if (full) Object.assign(o, {
+    body: str_(k.body), keywords: str_(k.keywords), photo_ids: idsOf_(k.photo_ids), from_no: str_(k.from_no),
+    author: str_(k.author_name), updated_by: str_(k.updated_by), created: thaiShort_(k.created_at), canEdit: kbCanEdit_(me, k)
+  });
+  return o;
+}
+
+/** รายการ + ค้นหา + กรองหมวด */
+function apiKbList_(me, d) {
+  const q = clip_(d.q, 80).toLowerCase(), cat = str_(d.cat);
+  const words = q.split(/\s+/).filter(Boolean);
+  let list = allKb_().filter(k => kbVisible_(me, k) && (!cat || str_(k.category) === cat));
+  if (words.length) {
+    const score = k => {
+      const title = str_(k.title).toLowerCase(), rest = [k.summary, k.body, k.keywords, k.category].map(v => str_(v).toLowerCase()).join(' ');
+      let sc = 0;
+      for (const w of words) { if (title.indexOf(w) >= 0) sc += 3; else if (rest.indexOf(w) >= 0) sc += 1; else return 0; }  // ต้องเจอทุกคำ
+      return sc;
+    };
+    list = list.map(k => ({ k: k, s: score(k) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s || Number(b.k.views || 0) - Number(a.k.views || 0)).map(x => x.k);
+  } else {
+    list = list.sort((a, b) => Number(b.views || 0) - Number(a.views || 0) || String(a.title).localeCompare(String(b.title)));
+  }
+  const counts = {};
+  allKb_().filter(k => kbVisible_(me, k)).forEach(k => { counts[k.category] = (counts[k.category] || 0) + 1; });
+  return { items: list.slice(0, 60).map(k => kbOut_(k, false, me)), total: list.length, categories: kbCategories_().map(c => ({ name: c, n: counts[c] || 0 })), canWrite: !!me.staff };
+}
+
+/** เปิดอ่าน (นับจำนวนครั้ง) */
+function apiKbGet_(me, d) {
+  const k = kbFind_(me, d.id);
+  if (!d.noCount) { try { updateObj_(SH.KB, KB_FIELDS, k._row, { views: Number(k.views || 0) + 1 }); k.views = Number(k.views || 0) + 1; } catch (e) { /* ไม่สำคัญพอจะทำให้เปิดไม่ได้ */ } }
+  return { item: kbOut_(k, true, me) };
+}
+
+/** รูปในบทความ (โหลดทีละรูปเหมือนใบแจ้งซ่อม) */
+function apiKbPhoto_(me, d) {
+  const k = kbFind_(me, d.id);
+  const pid = str_(d.pid);
+  if (idsOf_(k.photo_ids).indexOf(pid) < 0) throw new Error('ไม่พบรูปนี้ในบทความ');
+  return { id: pid, src: fileToDataUrl_(pid) };
+}
+
+/** เพิ่ม / แก้ไขบทความ (ช่าง + แอดมิน) */
+function apiKbSave_(me, d) {
+  requireStaff_(me);
+  const title = clip_(d.title, 150), body = clip_(d.body, 5000);
+  if (!title) throw new Error('กรุณากรอกหัวข้อ');
+  if (!body) throw new Error('กรุณากรอกขั้นตอนการแก้ไข');
+  const cats = kbCategories_();
+  const category = cats.indexOf(str_(d.category)) >= 0 ? str_(d.category) : cats[cats.length - 1];
+  const now = new Date();
+  let k = null;
+  if (d.id) {
+    k = allKb_().find(x => str_(x.id) === str_(d.id) && isActive_(x));
+    if (!k) throw new Error('ไม่พบบทความนี้');
+    if (!kbCanEdit_(me, k)) throw new Error('แก้ไขได้เฉพาะผู้เขียนหรือแอดมิน');
+  }
+  // รูป: เก็บรูปเดิมที่ยังเลือกไว้ + รูปจากใบแจ้งซ่อม (ตรวจว่าเป็นรูปของใบนั้นจริง) + รูปใหม่
+  const keep = k ? idsOf_(k.photo_ids).filter(id => (d.keep_photo_ids || []).indexOf(id) >= 0) : [];
+  let fromNo = k ? str_(k.from_no) : '';
+  let copied = [];
+  if (!k && d.from_no) {
+    const t = getTicket_(d.from_no);
+    fromNo = String(t.no);
+    const own = idsOf_(t.after_photo_ids).concat(idsOf_(t.photo_ids));
+    copied = (d.copy_photo_ids || []).filter(id => own.indexOf(id) >= 0);
+  }
+  const fresh = (d.photos || []).slice(0, Math.max(0, KB_MAX_PHOTOS - keep.length - copied.length));
+
+  const lock = LockService.getScriptLock();
+  let id = k ? str_(k.id) : '';
+  if (!k) {
+    lock.waitLock(20000);
+    try {
+      settings_._cache = null;
+      const n = Number(setting_('KB_NEXT_NO', 1));
+      setSetting_('KB_NEXT_NO', n + 1);
+      id = 'KB' + ('000' + n).slice(-4);
+    } finally { lock.releaseLock(); }
+  }
+  let newIds = [];
+  if (fresh.length) {
+    const folder = subFolder_(subFolder_(rootFolder_(), 'คลังความรู้'), id);
+    newIds = fresh.map((p, i) => saveDataUrl_(p, folder, 'kb_' + fmt_(now, 'yyMMddHHmmss') + '_' + (i + 1)));
+  }
+  const rec = {
+    title: title, category: category, audience: d.audience === 'staff' ? 'staff' : 'all',
+    summary: clip_(d.summary, 500), body: body, keywords: clip_(d.keywords, 300),
+    photo_ids: keep.concat(copied, newIds).slice(0, KB_MAX_PHOTOS).join(','),
+    updated_at: now, updated_by: me.name
+  };
+  if (k) {
+    updateObj_(SH.KB, KB_FIELDS, k._row, rec);
+    log_('', 'แก้ไขบทความ ' + id + ' ' + title, '', '', me, rec.audience === 'staff' ? 'เฉพาะช่าง' : 'ทุกคน');
+  } else {
+    appendObj_(SH.KB, KB_FIELDS, Object.assign(rec, { id: id, from_no: fromNo, author_uid: me.uid, author_name: me.name, created_at: now, views: 0, active: true }));
+    log_(fromNo, 'เพิ่มบทความคลังความรู้ ' + id + ' ' + title, '', '', me, rec.audience === 'staff' ? 'เฉพาะช่าง' : 'ทุกคน');
+  }
+  return { id: id };
+}
+
+/** ซ่อนบทความ (ไม่ลบจริง เผื่อต้องกู้คืน — แก้ช่อง "แสดง" เป็น TRUE ในชีต) */
+function apiKbHide_(me, d) {
+  requireStaff_(me);
+  const k = allKb_().find(x => str_(x.id) === str_(d.id) && isActive_(x));
+  if (!k) throw new Error('ไม่พบบทความนี้');
+  if (!kbCanEdit_(me, k)) throw new Error('ซ่อนได้เฉพาะผู้เขียนหรือแอดมิน');
+  updateObj_(SH.KB, KB_FIELDS, k._row, { active: false, updated_at: new Date(), updated_by: me.name });
+  log_('', 'ซ่อนบทความ ' + k.id + ' ' + k.title, '', '', me, '');
+  return { ok: true };
+}
+
 // ===== Setup.gs =====
 /** ===== ติดตั้งระบบ / เมนู / Trigger / Rich menu / ย้ายบัญชี ===== */
 
@@ -2055,6 +2348,7 @@ function setup() {
   ensureSheet_(SH.LOG, LOG_FIELDS, '#5C3D2E');
   ensureSheet_(SH.STAFF, STAFF_FIELDS, '#2B8A3E');
   ensureSheet_(SH.USERS, USER_FIELDS, '#1864AB');
+  ensureSheet_(SH.KB, KB_FIELDS, '#6741D9');
 
   // Settings: เพิ่มเฉพาะ key ที่ยังไม่มี (ไม่ทับค่าที่ตั้งไว้)
   let set = ss.getSheetByName(SH.SET);
@@ -2085,7 +2379,7 @@ function setup() {
     DriveApp.getFileById(ss.getId()).moveTo(root);
     setSetting_('ROOT_FOLDER_ID', root.getId());
   }
-  ['ใบแจ้งซ่อม', 'รายงานรายเดือน', 'สำรองข้อมูล', 'เทมเพลต', 'ลายเซ็นเจ้าหน้าที่'].forEach(n => subFolder_(rootFolder_(), n));
+  ['ใบแจ้งซ่อม', 'รายงานรายเดือน', 'สำรองข้อมูล', 'เทมเพลต', 'ลายเซ็นเจ้าหน้าที่', 'คลังความรู้'].forEach(n => subFolder_(rootFolder_(), n));
 
   let tplMsg = '';
   if (setting_('WEB_BASE_URL', '') && (!setting_('TICKET_TEMPLATE_ID', '') || !setting_('REPORT_TEMPLATE_ID', ''))) {
@@ -2113,13 +2407,13 @@ function ensureSheet_(name, fields, color) {
   sh.getRange(1, 1, 1, sh.getLastColumn()).setFontWeight('bold').setBackground(color).setFontColor('#FFFFFF').setWrap(true).setVerticalAlignment('middle');
   sh.setFrozenRows(1);
   if (name === SH.REQ) sh.setFrozenColumns(3);
-  colMap_._m = null; allTickets_._m = null; allStaff_._m = null; allUsers_._m = null;
+  colMap_._m = null; allTickets_._m = null; allStaff_._m = null; allUsers_._m = null; allKb_._m = null;
   return sh;
 }
 
 /** ป้องกันการแก้ไขข้อมูลโดยตรง — แก้ได้เฉพาะเจ้าของไฟล์ (ระบบ) ; ผู้ที่ได้รับแชร์ดูได้อย่างเดียว */
 function protectSheets_() {
-  [SH.REQ, SH.LOG, SH.STAFF, SH.USERS, SH.SET].concat(LIST_SHEETS).forEach(n => {
+  [SH.REQ, SH.LOG, SH.STAFF, SH.USERS, SH.KB, SH.SET].concat(LIST_SHEETS).forEach(n => {
     const sh = ss_().getSheetByName(n);
     if (!sh) return;
     sh.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(p => p.remove());
@@ -2171,7 +2465,7 @@ function importTemplates_() {
 function setupRichMenu() {
   const base = String(setting_('WEB_BASE_URL', '')).replace(/\/?$/, '/');
   if (!base || !setting_('LIFF_ID', '')) throw new Error('กรุณากรอก WEB_BASE_URL และ LIFF_ID ก่อน');
-  ['RICHMENU_USER_ID', 'RICHMENU_STAFF_ID'].forEach(k => {
+  ['RICHMENU_USER_ID', 'RICHMENU_STAFF_ID', 'RICHMENU_TECH_ID', 'RICHMENU_ADMIN_ID'].forEach(k => {
     const old = setting_(k, '');
     if (old) { try { lineApi_('/v2/bot/richmenu/' + old, null, 'delete'); } catch (e) { /* ignore */ } }
   });
@@ -2186,12 +2480,15 @@ function setupRichMenu() {
     if (up.getResponseCode() >= 300) throw new Error('อัปโหลดรูป rich menu ไม่สำเร็จ: ' + up.getContentText());
     return r.richMenuId;
   };
-  const userId = make('ผู้ใช้ทั่วไป', [area(0, 1250, liffUrl_('form'), 'แจ้งซ่อม'), area(1250, 1250, liffUrl_('mine'), 'ติดตามงาน')], 'richmenu_user.png');
-  const staffId = make('เจ้าหน้าที่', [area(0, 834, liffUrl_('form'), 'แจ้งซ่อม'), area(834, 833, liffUrl_('mine'), 'ติดตามงาน'), area(1667, 833, liffUrl_('dash'), 'ภาพรวมงาน')], 'richmenu_staff.png');
+  const userId = make('ผู้ใช้ทั่วไป', [area(0, 834, liffUrl_('form'), 'แจ้งซ่อม'), area(834, 833, liffUrl_('mine'), 'ติดตามงาน'), area(1667, 833, liffUrl_('kb'), 'แก้ปัญหาเอง')], 'richmenu_user.png');
+  const techId = make('ช่าง', [area(0, 834, liffUrl_('form'), 'แจ้งซ่อม'), area(834, 833, liffUrl_('staff'), 'งานของฉัน'), area(1667, 833, liffUrl_('cal'), 'ตารางงาน')], 'richmenu_tech.png');
+  const adminId = make('แอดมิน', [area(0, 834, liffUrl_('form'), 'แจ้งซ่อม'), area(834, 833, liffUrl_('staff'), 'จัดการงาน'), area(1667, 833, liffUrl_('dash'), 'ภาพรวม')], 'richmenu_admin.png');
   lineApi_('/v2/bot/user/all/richmenu/' + userId, null);
   setSetting_('RICHMENU_USER_ID', userId);
-  setSetting_('RICHMENU_STAFF_ID', staffId);
-  activeStaff_().forEach(s => { try { lineApi_('/v2/bot/user/' + s.uid + '/richmenu/' + staffId, null); } catch (e) { logError_(e, 'link menu'); } });
+  setSetting_('RICHMENU_TECH_ID', techId);
+  setSetting_('RICHMENU_ADMIN_ID', adminId);
+  setSetting_('RICHMENU_STAFF_ID', '');   // เมนูเจ้าหน้าที่ชุดเดิม (รวมช่าง+แอดมิน) เลิกใช้แล้ว
+  activeStaff_().forEach(s => linkMenu_(s.uid, s.role, true));
   try { SpreadsheetApp.getUi().alert('สร้าง Rich menu แล้ว'); } catch (e) { /* no ui */ }
 }
 

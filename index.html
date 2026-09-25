@@ -24,7 +24,7 @@ body{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
 .card h2 .n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--pri-soft);color:var(--pri);font-size:12px}
 label.f{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
 label.f b{color:var(--bad);font-weight:600}
-input[type=text],input[type=tel],input[type=date],input[type=number],select,textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;background:#FBFCFD;color:var(--ink)}
+input[type=text],input[type=tel],input[type=date],input[type=time],input[type=search],input[type=number],select,textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;background:#FBFCFD;color:var(--ink)}
 textarea{min-height:76px;resize:vertical}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--pri-soft);border-color:var(--pri)}
 .row{display:flex;gap:10px}.row>*{flex:1}
@@ -106,6 +106,15 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--pri-soft);border
 .sbox{background:var(--card);width:100%;border-radius:16px 16px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:88vh;overflow:auto;animation:up .18s ease-out}
 .sbox h2{margin:0 0 6px;font-size:17px}
 .seg button{white-space:nowrap}
+.card.st.off{opacity:.62}
+.imgs.big img{width:calc(50% - 4px);height:auto;max-height:260px;aspect-ratio:4/3}
+.lb{position:fixed;inset:0;background:#000d;z-index:50;display:grid;place-items:center;padding:12px}.lb img{max-width:100%;max-height:100%;border-radius:8px}
+.kbc{display:block;text-decoration:none;color:inherit}.kbc h3{margin:0 0 4px;font-size:16px}.kbc p{margin:0;color:var(--muted);font-size:13.5px}
+.kbc .meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--muted)}
+.tag{display:inline-block;padding:2px 8px;border-radius:99px;background:var(--pri-soft);color:var(--pri);font-size:12px;font-weight:600}
+.tag.st{background:#FFF4E6;color:#A35200}
+.kbbody{white-space:pre-wrap;line-height:1.75;font-size:15px}
+.sec-h{font-size:14px;color:var(--muted);margin:16px 4px 8px;font-weight:600}
 @keyframes up{from{transform:translateY(24px);opacity:.4}}
 .srch{display:flex;gap:8px;margin-bottom:12px}.srch input{flex:1}
 .cal{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px}
@@ -230,22 +239,28 @@ function mark(on) {
 
 /* ---- รูปภาพ: โหลดหลังวาดหน้าเสร็จ ---- */
 const PHOTOS = {};
-function imgsHtml(no, ids) {
+function imgsHtml(no, ids, kb) {
   if (!ids || !ids.length) return '';
-  return '<div class="imgs">' + ids.map(id => PHOTOS[id]
+  return '<div class="imgs' + (kb ? ' big' : '') + '">' + ids.map(id => PHOTOS[id]
     ? `<img src="${PHOTOS[id]}">`
-    : `<img class="lz" data-no="${esc(no)}" data-p="${esc(id)}">`).join('') + '</div>';
+    : `<img class="lz" ${kb ? 'data-kb' : 'data-no'}="${esc(no)}" data-p="${esc(id)}">`).join('') + '</div>';
 }
 function loadPhotos() {
   app.querySelectorAll('img.lz').forEach(async el => {
     const id = el.dataset.p;
     el.classList.remove('lz'); el.classList.add('lzw');
     try {
-      const r = PHOTOS[id] ? { src: PHOTOS[id] } : await api('photo', { no: el.dataset.no, id: id });
+      const r = PHOTOS[id] ? { src: PHOTOS[id] }
+        : el.dataset.kb ? await api('kbPhoto', { id: el.dataset.kb, pid: id }) : await api('photo', { no: el.dataset.no, id: id });
       if (r.src) { PHOTOS[id] = r.src; el.src = r.src; el.classList.remove('lzw'); }
     } catch (e) { el.remove(); }
   });
 }
+// แตะรูปเพื่อดูเต็มจอ (รูปขั้นตอน/หน้าจอ ต้องอ่านตัวหนังสือได้)
+document.addEventListener('click', e => {
+  const im = e.target.closest && e.target.closest('.imgs img');
+  if (im && im.src) { const v = document.createElement('div'); v.className = 'lb'; v.innerHTML = '<img src="' + im.src + '">'; v.onclick = () => v.remove(); document.body.appendChild(v); }
+});
 
 function statusCls(s) {
   return { 'รอมอบหมาย': 's-new', 'มอบหมายแล้ว': 's-asg', 'นัดหมายแล้ว': 's-pln', 'พักงาน': 's-pau', 'รอตรวจงาน': 's-wa', 'ส่งกลับแก้ไข': 's-rej', 'ดำเนินการเสร็จสิ้น': 's-cls', 'ยกเลิก': 's-cxl' }[s] || 's-cls';
@@ -258,7 +273,7 @@ function go(page, no, extra) {
   const u = new URL(location.href);
   u.searchParams.set('p', page);
   if (no) u.searchParams.set('no', no); else u.searchParams.delete('no');
-  ['onsite', 'q', 'd', 'm'].forEach(k => u.searchParams.delete(k));
+  ['onsite', 'q', 'd', 'm', 'c', 'id', 'from'].forEach(k => u.searchParams.delete(k));
   if (extra) Object.keys(extra).forEach(k => u.searchParams.set(k, extra[k]));
   history.pushState({}, '', u); route();
 }
@@ -335,7 +350,7 @@ async function route() {
   const p = u.searchParams.get('p') || 'form';
   const no = u.searchParams.get('no');
   window.scrollTo(0, 0);
-  const pages = { reg: pageReg, dash: pageDash, form: pageForm, mine: pageMine, ticket: pageTicket, accept: pageAccept, staff: pageStaff, job: pageJob, mysig: pageMySig, search: pageSearch, cal: pageCal };
+  const pages = { reg: pageReg, dash: pageDash, form: pageForm, mine: pageMine, ticket: pageTicket, accept: pageAccept, staff: pageStaff, job: pageJob, mysig: pageMySig, search: pageSearch, cal: pageCal, team: pageTeam, kb: pageKb, kbv: pageKbView, kbe: pageKbEdit };
   (pages[p] || pageForm)(no);
 }
 
@@ -374,7 +389,7 @@ function pageForm() {
   const saved = { reporter_name: P.name, department: P.department, phone: P.phone, building: last.building || P.building, floor: last.floor || P.floor, room: last.room || P.room };
   const st = { building: saved.building || '', items: new Set() };
   app.innerHTML = topBar('แจ้งซ่อมคอมพิวเตอร์และอุปกรณ์') + `<div class="wrap">
-    <div class="note">กรอกข้อมูลให้ครบ ระบบจะออกเลขรับแจ้งและแจ้งสถานะกลับทาง LINE · กำหนดแล้วเสร็จภายใน ${INIT.slaDays} วัน</div>
+    <div class="note">กรอกข้อมูลให้ครบ ระบบจะออกเลขรับแจ้งและแจ้งสถานะกลับทาง LINE · กำหนดแล้วเสร็จภายใน ${INIT.slaDays} วัน<br>💡 <a href="javascript:void 0" onclick="go('kb')">ลองดูวิธีแก้ปัญหาเบื้องต้นก่อน</a> — บางปัญหาแก้เองได้ใน 1 นาที</div>
     <div class="card"><h2><span class="n">1</span>ผู้แจ้ง <a href="javascript:void 0" onclick="go('reg')" class="small" style="margin-left:auto;font-weight:400">แก้ข้อมูลของฉัน</a></h2>
       <label class="f">ชื่อ-นามสกุล <b>*</b></label><input type="text" id="reporter_name" value="${esc(saved.reporter_name || INIT.me.name)}">
       <label class="f">ภาควิชา/หน่วยงาน <b>*</b></label><input type="text" id="department" value="${esc(saved.department || '')}">
@@ -625,9 +640,9 @@ function drawStaff(r) {
   $('#s').innerHTML = `${!me.hasSignature ? `<div class="note warn">ยังไม่ได้บันทึกลายเซ็นช่าง (ใช้ในใบแจ้งซ่อม) <a href="javascript:void 0" onclick="go('mysig')"><b>บันทึกตอนนี้</b></a></div>` : ''}
     <div class="stats"><div class="stat"><b>${s.total}</b><span>${me.role === 'admin' ? 'งานเดือนนี้' : 'งานฉันเดือนนี้'}</span></div><div class="stat"><b>${s.open}</b><span>คงค้าง</span></div>
     <div class="stat"><b>${s.isoPct === null ? '-' : s.isoPct + '%'}</b><span>ทันใน ${INIT.slaDays} วัน</span></div><div class="stat"><b>${s.avgRating === null ? '-' : s.avgRating}</b><span>ความพึงพอใจ</span></div></div>
-    <div class="row" style="margin-bottom:10px"><button class="btn sec sm" onclick="go('cal')">🗓 ${me.role === 'admin' ? 'ตารางงานช่าง' : 'ตารางงานของฉัน'}</button><button class="btn sec sm" onclick="go('search')">🔍 ค้นประวัติซ่อม</button></div>
+    <div class="row" style="margin-bottom:10px"><button class="btn sec sm" onclick="go('cal')">🗓 ตารางงาน</button><button class="btn sec sm" onclick="go('search')">🔍 ค้นประวัติ</button><button class="btn sec sm" onclick="go('kb')">📚 คลังความรู้</button></div>
     <div class="tabs">${Object.keys(names).map(k => `<button class="tab${k === TAB ? ' on' : ''}" data-t="${k}">${names[k]}<i>${groups[k].length}</i></button>`).join('')}</div>
-    <div id="tl"></div><div class="center small muted" style="margin:16px 0">${esc(me.name)} · ${me.role === 'admin' ? 'หัวหน้างาน/แอดมิน' : 'ช่าง'} · <a href="javascript:void 0" onclick="go('mysig')">ลายเซ็นของฉัน</a></div>`;
+    <div id="tl"></div><div class="center small muted" style="margin:16px 0">${esc(me.name)} · ${me.role === 'admin' ? 'หัวหน้างาน/แอดมิน' : 'ช่าง'} · <a href="javascript:void 0" onclick="go('mysig')">ลายเซ็นของฉัน</a> · <a href="javascript:void 0" onclick="go('mine')">งานที่ฉันแจ้งเอง</a>${me.role === 'admin' ? ' · <a href="javascript:void 0" onclick="go(\'team\')">👥 จัดการเจ้าหน้าที่</a>' : ''}</div>`;
   const draw = () => { $('#tl').innerHTML = groups[TAB].length ? groups[TAB].map(t => tkCard(t, true)).join('') : '<div class="empty">ไม่มีรายการ</div>'; };
   app.querySelectorAll('.tab').forEach(b => b.onclick = () => { TAB = b.dataset.t; LS.set('staffTab', TAB); app.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); draw(); });
   draw();
@@ -729,7 +744,7 @@ function drawJob(r, s, no) {
         .map(o => `<option value="${o[0]}"${o[0] && t.plan && t.plan.indexOf(o[1].split(' (')[0]) === 0 ? ' selected' : ''}>${o[1]}</option>`).join('')}</select>
       <div id="daysBox" class="${t.plan && t.plan !== 'ซ่อมได้' ? '' : 'hidden'}"><label class="f">ภายใน (วัน)</label><input type="number" id="days" min="0" value="${esc(t.plan_days || 1)}"></div>
       <label class="f">คำแนะนำแก้ไขเบื้องต้น</label><input type="text" id="adv" value="${esc(t.advice || '')}">
-      <label class="f">รหัสครุภัณฑ์</label><input type="text" id="asset" value="${esc(t.asset_code || '')}">
+      <label class="f">รหัสครุภัณฑ์ <b>*</b> <span class="small">(งานที่ไม่มีครุภัณฑ์ ใส่ -)</span></label><input type="text" id="asset" value="${esc(t.asset_code || '')}" placeholder="เช่น 7440-001-0001">
       <label class="f">ประเภทของปัญหา <b>*</b> <span class="small">(ระบบเลือกให้อัตโนมัติ แก้ได้)</span></label>
       <div class="chips" id="cat">${INIT.lists.categories.map(c => `<button type="button" class="chip${c === t.category ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
       <label class="f">รูปหลังดำเนินการ</label><div class="photos" id="aph"></div>
@@ -744,6 +759,7 @@ function drawJob(r, s, no) {
   if (!can && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0) sections.push('<div class="note">งานนี้เป็นของ' + esc(t.assigned_name || 'ช่างท่านอื่น') + ' · คุณเปิดดูได้อย่างเดียว</div>');
   if (can && t.status === 'มอบหมายแล้ว') sections.push('<div class="note">บันทึกนัดหมายก่อน แล้วระบบจะเปิดขั้นตอนซ่อมบำรุง (พักงาน/ปิดงาน) ให้ในหน้านี้</div>');
   if (t.pdf_url) sections.push(`<div class="card"><a class="btn sec" style="text-align:center;text-decoration:none" href="${t.pdf_url}" target="_blank">📄 เปิดใบแจ้งซ่อม PDF</a></div>`);
+  if (['รอตรวจงาน', 'ดำเนินการเสร็จสิ้น'].indexOf(t.status) >= 0 && t.solution) sections.push(`<div class="card"><button class="btn sec" onclick="go('kbe',null,{from:'${t.no}'})">📚 บันทึกวิธีแก้นี้ลงคลังความรู้</button><div class="hint">ระบบดึงอาการ สาเหตุ วิธีแก้ และรูปหลังซ่อมมาเป็นร่างให้ แก้ไขก่อนบันทึกได้</div></div>`);
   if (isAdmin && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0) sections.push('<div class="center" style="margin:6px 0 18px"><a href="javascript:void 0" id="cxl" class="small" style="color:var(--bad)">ยกเลิกใบแจ้งซ่อมนี้</a></div>');
   $('#d').innerHTML = sections.join('') + ticketDetailHtml(t, true);
   loadPhotos();
@@ -761,18 +777,30 @@ function drawJob(r, s, no) {
   on('savePlan', async () => {
     const d = { no, appoint_date: $('#appoint').value, appoint_time: $('#appointT').value, plan_note: $('#pnote').value.trim() };
     if (!d.appoint_date || !d.appoint_time) return toast('กรุณาระบุวันนัดและเวลา');
+    if (clashNo) return toast('เวลานี้ชนกับนัดงาน #' + clashNo + ' กรุณาเลือกเวลาอื่น');
     await run(() => api('plan', d)); toast('บันทึกและแจ้งผู้แจ้งแล้ว'); stale(); refresh('sc'); pageJob(no);
   });
   // เตือนเมื่อนัดชนกับงานอื่นของช่างคนเดียวกัน (ดูจากรายการงานที่โหลดมาแล้ว)
+  const toMin = hm => { const m = String(hm || '').match(/^(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; };
+  const gap = Math.max(1, Number(INIT.appointGap == null ? 60 : INIT.appointGap));
+  let clashNo = null;
   const chk = () => {
-    const box = $('#clash'); if (!box) return;
-    const dt = $('#appoint').value, tm = $('#appointT').value;
-    const others = (s.tickets || []).filter(x => x.no != no && x.assigned_uid && x.assigned_uid === (t.assigned_uid || me.uid)
-      && x.appoint_iso === dt && (x.appoint_time || '') === tm && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(x.status) < 0);
-    box.className = others.length ? 'note warn' : 'hidden';
-    if (others.length) box.innerHTML = '⚠ ช่วงเวลานี้ชนกับงาน ' + others.map(x => '#' + x.no).join(', ') + ' ของช่างคนเดียวกัน';
+    const box = $('#clash'), btn = $('#savePlan'); if (!box) return;
+    const dt = $('#appoint').value, tm = toMin($('#appointT').value);
+    const booked = (s.tickets || []).filter(x => x.no != no && x.assigned_uid && x.assigned_uid === (t.assigned_uid || me.uid)
+      && x.appoint_iso === dt && ['นัดหมายแล้ว', 'พักงาน', 'ส่งกลับแก้ไข'].indexOf(x.status) >= 0 && toMin(x.appoint_time) !== null)
+      .sort((a, b) => toMin(a.appoint_time) - toMin(b.appoint_time));
+    const hit = tm === null ? null : booked.find(x => Math.abs(toMin(x.appoint_time) - tm) < gap);
+    clashNo = hit ? hit.no : null;
+    if (!booked.length) { box.className = 'hidden'; box.innerHTML = ''; }
+    else {
+      box.className = hit ? 'note warn' : 'note';
+      box.innerHTML = (hit ? `<b>⚠ ชนกับนัดงาน #${hit.no} เวลา ${esc(hit.appoint_time)} น.</b><br>นัดของช่างคนเดียวกันต้องห่างกันอย่างน้อย ${gap} นาที กรุณาเลือกเวลาอื่น<br>` : '') +
+        'นัดที่มีแล้ววันนี้: ' + booked.map(x => `${esc(x.appoint_time)} น. (#${x.no})`).join(' · ');
+    }
+    if (btn) { btn.disabled = !!hit; btn.style.opacity = hit ? .5 : 1; }
   };
-  ['appoint', 'appointT'].forEach(id => { const e = $('#' + id); if (e) e.onchange = chk; });
+  ['appoint', 'appointT'].forEach(id => { const e = $('#' + id); if (e) { e.onchange = chk; e.oninput = chk; } });
   chk();
   let cat = t.category || '';
   app.querySelectorAll('#cat .chip').forEach(c => c.onclick = () => { cat = c.dataset.c; app.querySelectorAll('#cat .chip').forEach(x => x.classList.toggle('on', x === c)); });
@@ -783,6 +811,7 @@ function drawJob(r, s, no) {
     const d = { no, onsite, cause: pick('cause'), solution: pick('sol'), advice: $('#adv').value.trim(), asset_code: $('#asset').value.trim(), category: cat, after_photos: aph ? aph.list : [],
       plan: pl ? pl.value : '', plan_days: $('#days') ? $('#days').value : '' };
     if (!d.cause || !d.solution || !d.category) return toast('กรุณากรอกสาเหตุ แนวทางแก้ไข และประเภท');
+    if (!d.asset_code) { toast('กรุณากรอกรหัสครุภัณฑ์ (งานที่ไม่มีครุภัณฑ์ ใส่ -)'); const a = $('#asset'); a.focus(); a.scrollIntoView({ block: 'center' }); return; }
     await run(() => api('complete', d)); stale();
     if (onsite) go('accept', no, { onsite: 1 }); else { toast('ส่งคำขอตรวจงานให้ผู้แจ้งแล้ว'); pageJob(no); }
   };
@@ -843,12 +872,186 @@ function drawCal(r, from) {
     }).join('')}</div>
     <div class="row" style="margin-bottom:10px">${techOpts}<div class="seg" style="flex:none"><button type="button" data-v="day" class="${CAL_VIEW === 'day' ? 'on' : ''}">รายวัน</button><button type="button" data-v="week" class="${CAL_VIEW === 'week' ? 'on' : ''}">7 วัน</button></div></div>
     <div id="cl">${CAL_VIEW === 'day' ? dayCard(day) : r.list.slice(0, 7).map(d => dayCard(d, true)).join('')}</div>
-    <div class="center small" style="margin:10px 0 18px"><a href="javascript:void 0" onclick="go('cal',null,{d:'${esc(addDaysIso(sel, CAL_VIEW === 'day' ? 1 : 7))}'})">ดูช่วงถัดไป →</a></div>`;
+    <div class="row" style="margin:10px 0 18px">
+      <button class="btn sec sm" onclick="go('cal',null,{d:'${esc(addDaysIso(sel, CAL_VIEW === 'day' ? -1 : -7))}'})">← ${CAL_VIEW === 'day' ? 'วันก่อน' : '7 วันก่อน'}</button>
+      ${sel !== r.today ? `<button class="btn sec sm" style="flex:.7" onclick="go('cal')">วันนี้</button>` : ''}
+      <button class="btn sec sm" onclick="go('cal',null,{d:'${esc(addDaysIso(sel, CAL_VIEW === 'day' ? 1 : 7))}'})">${CAL_VIEW === 'day' ? 'วันถัดไป' : '7 วันถัดไป'} →</button></div>`;
   app.querySelectorAll('.cal button').forEach(b => b.onclick = () => go('cal', null, { d: b.dataset.d }));
   app.querySelectorAll('.seg button').forEach(b => b.onclick = () => { CAL_VIEW = b.dataset.v; LS.set('calView', CAL_VIEW); drawCal(r, sel); });
   const ft = $('#ft'); if (ft) ft.onchange = () => { CAL_TECH = ft.value; drawCal(r, sel); };
 }
 function addDaysIso(iso, n) { const d = new Date(iso + 'T00:00:00+07:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+
+/* ---------- 7) คลังความรู้ / แก้ปัญหาเบื้องต้น ---------- */
+async function pageKb() {
+  const u = new URL(location.href).searchParams, q = u.get('q') || '', cat = u.get('c') || '';
+  const isStaff = INIT.me.role !== 'user';
+  app.innerHTML = topBar('แก้ปัญหาเบื้องต้น', isStaff ? 'staff' : '') + `<div class="wrap">
+    <div class="srch"><input type="search" id="kq" placeholder="พิมพ์อาการ เช่น ปริ้นไม่ออก, WiFi หลุด" value="${esc(q)}"><button class="btn sm" id="kgo" style="flex:none;width:auto;padding:0 18px">ค้นหา</button></div>
+    <div id="kl"><div class="empty">กำลังโหลด...</div></div></div>
+    <div class="bar"><div class="in">${isStaff ? '<button class="btn" onclick="go(\'kbe\')">＋ เขียนบทความใหม่</button>' : '<button class="btn" onclick="go(\'form\')">ลองแล้วยังไม่หาย → แจ้งซ่อม</button>'}</div></div>`;
+  const doSearch = () => go('kb', null, Object.assign({ q: $('#kq').value.trim() }, cat ? { c: cat } : {}));
+  $('#kgo').onclick = doSearch; $('#kq').onkeydown = e => { if (e.key === 'Enter') doSearch(); };
+  await swr('kb|' + q + '|' + cat, () => api('kbList', { q, cat }), r => {
+    const chips = `<div class="chips" style="margin-bottom:12px"><button type="button" class="chip${cat ? '' : ' on'}" data-c="">ทั้งหมด</button>${r.categories.filter(c => c.n || c.name === cat).map(c => `<button type="button" class="chip${c.name === cat ? ' on' : ''}" data-c="${esc(c.name)}">${esc(c.name)} <span class="small">${c.n}</span></button>`).join('')}</div>`;
+    const card = k => `<a class="card kbc" href="javascript:void 0" onclick="go('kbv',null,{id:'${esc(k.id)}'})">
+      <h3>${esc(k.title)}</h3>${k.summary ? `<p>${esc(k.summary)}</p>` : ''}
+      <div class="meta"><span class="tag">${esc(k.category)}</span>${k.audience === 'staff' ? '<span class="tag st">เฉพาะช่าง</span>' : ''}${k.photos ? '<span>🖼 ' + k.photos + ' รูป</span>' : ''}<span>👁 ${k.views}</span></div></a>`;
+    $('#kl').innerHTML = chips + (q ? `<div class="hint">ผลการค้นหา “${esc(q)}” ${r.total} บทความ</div>` : '') +
+      (r.items.length ? r.items.map(card).join('') : `<div class="empty">${q || cat ? 'ไม่พบบทความ' : 'ยังไม่มีบทความ'}${isStaff ? '' : ' — ถ้ามีปัญหา กดแจ้งซ่อมด้านล่างได้เลย'}</div>`) + '<div style="height:12px"></div>';
+    app.querySelectorAll('#kl .chip').forEach(b => b.onclick = () => go('kb', null, Object.assign(q ? { q } : {}, b.dataset.c ? { c: b.dataset.c } : {})));
+  });
+}
+async function pageKbView() {
+  const id = new URL(location.href).searchParams.get('id');
+  const isStaff = INIT.me.role !== 'user';
+  app.innerHTML = topBar('แก้ปัญหาเบื้องต้น', 'kb') + '<div class="wrap" id="kv"><div class="empty">กำลังโหลด...</div></div><div class="bar"><div class="in" id="kvb"></div></div>';
+  await swr('kbv' + id, () => api('kbGet', { id }), r => {
+    const k = r.item;
+    $('#kv').innerHTML = `<div class="card"><div class="meta" style="display:flex;gap:8px;margin-bottom:8px"><span class="tag">${esc(k.category)}</span>${k.audience === 'staff' ? '<span class="tag st">เฉพาะช่าง</span>' : ''}</div>
+      <h2 style="margin:0 0 6px">${esc(k.title)}</h2>${k.summary ? `<div class="muted" style="margin-bottom:10px">อาการ: ${esc(k.summary)}</div>` : ''}
+      <div class="hr"></div><div class="kbbody">${esc(k.body)}</div>
+      ${k.photo_ids.length ? '<div style="height:10px"></div>' + imgsHtml(k.id, k.photo_ids, true) + '<div class="hint">แตะรูปเพื่อดูเต็มจอ</div>' : ''}</div>
+      <div class="center small muted" style="margin:4px 0 16px">${esc(k.id)} · อ่าน ${k.views} ครั้ง · ปรับปรุง ${esc(k.updated)}${isStaff && k.author ? ' · เขียนโดย ' + esc(k.author) : ''}${isStaff && k.from_no ? ` · จาก <a href="javascript:void 0" onclick="go('job','${esc(k.from_no)}')">ใบแจ้งซ่อม #${esc(k.from_no)}</a>` : ''}</div>`;
+    loadPhotos();
+    $('#kvb').innerHTML = k.canEdit
+      ? `<div class="row"><button class="btn sec" onclick="go('kbe',null,{id:'${esc(k.id)}'})">แก้ไข</button><button class="btn sec" id="khide" style="color:var(--bad)">ซ่อนบทความ</button></div>`
+      : isStaff ? '<button class="btn sec" onclick="go(\'kb\')">กลับไปคลังความรู้</button>' : '<button class="btn" onclick="go(\'form\')">ทำตามแล้วยังไม่หาย → แจ้งซ่อม</button>';
+    const h = $('#khide'); if (h) h.onclick = () => confirmSheet('ซ่อนบทความนี้?', 'ผู้ใช้และช่างจะมองไม่เห็นบทความนี้อีก (แอดมินกู้คืนได้ในชีต คลังความรู้)', 'ซ่อนบทความ',
+      async () => { await run(() => api('kbHide', { id: k.id })); CACHE.drop('kb'); toast('ซ่อนแล้ว'); go('kb'); });
+  });
+}
+async function pageKbEdit() {
+  if (INIT.me.role === 'user') return pageKb();
+  const u = new URL(location.href).searchParams, id = u.get('id') || '', fromNo = u.get('from') || '';
+  app.innerHTML = topBar(id ? 'แก้ไขบทความ' : 'เขียนบทความใหม่', 'kb') + '<div class="wrap" id="ke"><div class="empty">กำลังโหลด...</div></div>';
+  const [cats, cur] = await run(() => Promise.all([api('kbList', { q: '', cat: '' }).then(r => r.categories.map(c => c.name)), id ? api('kbGet', { id, noCount: 1 }).then(r => r.item) : Promise.resolve(null)]));
+  // จากใบแจ้งซ่อม: ดึงอาการ สาเหตุ วิธีแก้ และรูปหลังซ่อมมาเป็นร่างให้
+  let tk = fromNo ? (CACHE.get('t' + fromNo) || {}).ticket : null;
+  if (fromNo && !tk) tk = (await run(() => api('getTicket', { no: fromNo }))).ticket;
+  const k = cur || (tk ? {
+    title: tk.items_text || '', summary: tk.detail || '', category: '',
+    body: [tk.cause ? 'สาเหตุ: ' + tk.cause : '', tk.solution ? 'วิธีแก้: ' + tk.solution : '', tk.advice ? 'คำแนะนำ: ' + tk.advice : ''].filter(Boolean).join('\n'),
+    keywords: tk.asset_code && tk.asset_code !== '-' ? tk.asset_code : '', audience: 'all', photo_ids: []
+  } : { title: '', summary: '', body: '', keywords: '', category: '', audience: 'all', photo_ids: [] });
+  const keep = new Set(k.photo_ids || []), copy = new Set(tk && !cur ? (tk.after_photos || []) : []);
+  $('#ke').innerHTML = `${tk && !cur ? `<div class="note">ร่างจากใบแจ้งซ่อม #${esc(fromNo)} — ตรวจแก้ข้อความให้คนทั่วไปอ่านเข้าใจ และลบข้อมูลส่วนตัว (ชื่อ เบอร์ ห้อง) ก่อนบันทึก</div>` : ''}
+    <div class="card"><label class="f">หัวข้อ <b>*</b></label><input type="text" id="kt" value="${esc(k.title)}" placeholder="เช่น ปริ้นเตอร์กระดาษติด ไฟกระพริบสีส้ม">
+      <label class="f">หมวด</label><div class="chips" id="kc">${cats.map(c => `<button type="button" class="chip${c === k.category ? ' on' : ''}" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+      <label class="f">อาการ / สรุปสั้น</label><input type="text" id="ks" value="${esc(k.summary)}" placeholder="ผู้ใช้จะเห็นอาการนี้ในรายการ">
+      <label class="f">ขั้นตอนการแก้ไข <b>*</b></label><textarea id="kb" style="min-height:180px" placeholder="1. ...&#10;2. ...&#10;3. ...">${esc(k.body)}</textarea>
+      <label class="f">คำค้นเพิ่มเติม</label><input type="text" id="kk" value="${esc(k.keywords)}" placeholder="เช่น paper jam, ยี่ห้อ/รุ่น">
+      <label class="f">รูปประกอบ (สูงสุด 6 รูป)</label><div id="kold"></div><div class="photos" id="kph"></div>
+      <label class="consent" style="margin-top:14px"><input type="checkbox" id="kst"${k.audience === 'staff' ? ' checked' : ''}><span><b>เฉพาะช่าง</b> — ผู้ใช้ทั่วไปมองไม่เห็นบทความนี้ (เช่น วิธีเชิงเทคนิค รหัสผ่านอุปกรณ์)</span></label></div>
+    <div style="height:8px"></div>`;
+  app.insertAdjacentHTML('beforeend', '<div class="bar"><div class="in"><button class="btn" id="ksave">บันทึกบทความ</button></div></div>');
+  let cat = k.category || '';
+  app.querySelectorAll('#kc .chip').forEach(c => c.onclick = () => { cat = c.dataset.c; app.querySelectorAll('#kc .chip').forEach(x => x.classList.toggle('on', x === c)); });
+  const old = [...keep].map(p => ({ p, kind: 'keep' })).concat([...copy].map(p => ({ p, kind: 'copy' })));
+  const drawOld = () => {
+    const box = $('#kold');
+    box.innerHTML = old.length ? '<div class="imgs">' + old.map((o, i) => `<div class="ph" style="position:relative">${PHOTOS[o.p] ? `<img src="${PHOTOS[o.p]}" style="width:96px;height:96px;object-fit:cover;border-radius:10px">` : `<img class="lz" ${o.kind === 'copy' ? 'data-no' : 'data-kb'}="${esc(o.kind === 'copy' ? fromNo : id)}" data-p="${esc(o.p)}" style="width:96px;height:96px;border-radius:10px">`}<button type="button" data-i="${i}">✕</button></div>`).join('') + '</div>' : '';
+    box.querySelectorAll('button[data-i]').forEach(b => b.onclick = () => { old.splice(+b.dataset.i, 1); drawOld(); });
+    loadPhotos();
+  };
+  drawOld();
+  const pick = photoPicker($('#kph'), Math.max(0, 6 - old.length));
+  $('#ksave').onclick = async () => {
+    const d = { id: cur ? id : '', title: $('#kt').value.trim(), category: cat, summary: $('#ks').value.trim(), body: $('#kb').value.trim(), keywords: $('#kk').value.trim(),
+      audience: $('#kst').checked ? 'staff' : 'all', photos: pick.list,
+      keep_photo_ids: old.filter(o => o.kind === 'keep').map(o => o.p), copy_photo_ids: old.filter(o => o.kind === 'copy').map(o => o.p), from_no: cur ? '' : fromNo };
+    if (!d.title || !d.body) return toast('กรุณากรอกหัวข้อและขั้นตอนการแก้ไข');
+    if (!d.category) return toast('กรุณาเลือกหมวด');
+    if (old.length + d.photos.length > 6) return toast('รูปรวมได้ไม่เกิน 6 รูป');
+    const r = await run(() => api('kbSave', d));
+    CACHE.drop('kb'); toast('บันทึกบทความแล้ว'); go('kbv', null, { id: r.id });
+  };
+}
+
+/* ---------- 5.3) จัดการเจ้าหน้าที่ (แอดมิน) ---------- */
+async function pageTeam() {
+  if (INIT.me.role !== 'admin') return pageStaff();
+  app.innerHTML = topBar('จัดการเจ้าหน้าที่', 'staff') + '<div class="wrap" id="tm"><div class="empty">กำลังโหลด...</div></div>';
+  await swr('team', () => api('staffList'), r => drawTeam(r));
+}
+function drawTeam(r) {
+  const liff = 'https://liff.line.me/' + (r.liffId || CFG.LIFF_ID) + '?p=staff';
+  const invite = (kind, code) => `ลงทะเบียน${kind === 'admin' ? 'แอดมิน' : 'ช่าง'}ระบบแจ้งซ่อม\n1) เพิ่มเพื่อน LINE OA แล้วเปิดลิงก์นี้ใน LINE\n${liff}\n2) กรอกรหัสลงทะเบียน ${code} และชื่อ-นามสกุลจริง`;
+  const card = x => `<div class="card st${x.active ? '' : ' off'}">
+      <div class="l1" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <b style="font-size:16px">${esc(x.name || '(ไม่มีชื่อ)')}${x.me ? ' <span class="small">(คุณ)</span>' : ''}</b>
+        <span class="badge ${!x.active ? 's-cxl' : x.role === 'admin' ? 's-pln' : 's-asg'}">${!x.active ? 'ปิดใช้งาน' : x.role === 'admin' ? 'แอดมิน' : 'ช่าง'}</span></div>
+      <div class="small muted" style="margin:6px 0 10px">${x.phone ? '📞 ' + esc(x.phone) + ' · ' : ''}งานค้าง ${x.openNow} · เดือนนี้ ${x.month} งาน · ${x.hasSignature ? 'มีลายเซ็นแล้ว' : '<span style="color:var(--bad)">ยังไม่มีลายเซ็น</span>'}${x.registered ? ' · ลงทะเบียน ' + esc(x.registered) : ''}</div>
+      <button class="btn sec sm" data-edit="${esc(x.uid)}">แก้ไข</button></div>`;
+  const on = r.staff.filter(x => x.active), off = r.staff.filter(x => !x.active);
+  $('#tm').innerHTML = `
+    <div class="card"><h2>เพิ่มเจ้าหน้าที่ใหม่</h2>
+      <div class="hint" style="margin:0 0 10px">ส่งข้อความเชิญให้คนนั้น เขาเปิดลิงก์ใน LINE แล้วกรอกรหัส ระบบจะสลับเมนูให้เองตามบทบาท</div>
+      ${['tech', 'admin'].map(k => `<div class="row" style="align-items:center;margin-bottom:8px">
+        <div><div class="small muted">รหัส${k === 'admin' ? 'แอดมิน' : 'ช่าง'}</div><b style="font-size:18px;letter-spacing:1px">${esc(r.codes[k])}</b></div>
+        <button class="btn sm" style="flex:none;width:auto;padding:0 14px" data-copy="${k}">คัดลอกข้อความเชิญ</button>
+        <button class="btn sec sm" style="flex:none;width:auto;padding:0 12px" data-new="${k}">รหัสใหม่</button></div>`).join('')}
+      <div class="hint">กด "รหัสใหม่" เมื่อรหัสหลุดหรือมีคนลาออก — รหัสเดิมจะใช้ลงทะเบียนไม่ได้ทันที คนที่ลงทะเบียนไว้แล้วไม่กระทบ</div></div>
+    <h3 class="sec-h">ใช้งานอยู่ (${on.length})</h3>${on.map(card).join('')}
+    ${off.length ? `<h3 class="sec-h">ปิดใช้งาน (${off.length})</h3>${off.map(card).join('')}` : ''}
+    <div style="height:14px"></div>`;
+  app.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copyText(invite(b.dataset.copy, r.codes[b.dataset.copy]), 'คัดลอกข้อความเชิญแล้ว ส่งต่อทาง LINE ได้เลย'));
+  app.querySelectorAll('[data-new]').forEach(b => b.onclick = () => confirmSheet(
+    'สร้างรหัส' + (b.dataset.new === 'admin' ? 'แอดมิน' : 'ช่าง') + 'ใหม่?', 'รหัสเดิม ' + r.codes[b.dataset.new] + ' จะใช้ลงทะเบียนไม่ได้อีก', 'สร้างรหัสใหม่',
+    async () => { const x = await run(() => api('staffCode', { kind: b.dataset.new })); toast('รหัสใหม่: ' + x.code); refresh('team'); pageTeam(); }));
+  app.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => editStaff(r.staff.find(x => x.uid === b.dataset.edit)));
+}
+function editStaff(x) {
+  const st = { role: x.role, active: x.active };
+  app.insertAdjacentHTML('beforeend', `<div class="sheet" id="esSheet"><div class="sbox">
+    <h2>แก้ไขเจ้าหน้าที่</h2>
+    <label class="f">ชื่อ-นามสกุล (แสดงในใบแจ้งซ่อมและรายงาน) <b>*</b></label><input type="text" id="esN" value="${esc(x.name)}">
+    <label class="f">เบอร์โทร</label><input type="tel" id="esP" value="${esc(x.phone)}">
+    <label class="f">บทบาท</label><div class="seg" id="esR"><button type="button" data-v="tech">ช่าง</button><button type="button" data-v="admin">แอดมิน</button></div>
+    <label class="f">สถานะ</label><div class="seg" id="esA"><button type="button" data-v="1">ใช้งาน</button><button type="button" data-v="0">ปิดใช้งาน</button></div>
+    <div id="esW" class="hidden"></div>
+    <div class="row" style="margin-top:14px"><button class="btn sec" id="esX">ยกเลิก</button><button class="btn" id="esOk">บันทึก</button></div>
+  </div></div>`);
+  const paint = () => {
+    app.querySelectorAll('#esR button').forEach(b => b.classList.toggle('on', b.dataset.v === st.role));
+    app.querySelectorAll('#esA button').forEach(b => { const on = (b.dataset.v === '1') === st.active; b.classList.toggle('on', on); b.classList.toggle('bad', on && !st.active); });
+    const w = $('#esW'), msgs = [];
+    if (!st.active && x.active && x.openNow) msgs.push('มีงานค้าง ' + x.openNow + ' ใบ — ปิดใช้งานแล้วงานยังค้างชื่อคนนี้ ควรมอบหมายให้คนอื่นก่อน');
+    if (!st.active && x.active) msgs.push('คนนี้จะเข้าหน้าเจ้าหน้าที่ไม่ได้ และเมนู LINE จะกลับเป็นเมนูผู้ใช้ทั่วไป');
+    if (st.role !== x.role) msgs.push(st.role === 'admin' ? 'จะเห็นงานทุกคน หน้าภาพรวม และจัดการเจ้าหน้าที่ได้' : 'จะเห็นเฉพาะงานของตัวเอง');
+    if (x.me && (st.role !== 'admin' || !st.active)) msgs.push('นี่คือบัญชีของคุณเอง — บันทึกแล้วคุณจะเข้าหน้านี้ไม่ได้อีก');
+    w.className = msgs.length ? 'note warn' : 'hidden'; w.innerHTML = msgs.map(esc).join('<br>');
+  };
+  app.querySelectorAll('#esR button').forEach(b => b.onclick = () => { st.role = b.dataset.v; paint(); });
+  app.querySelectorAll('#esA button').forEach(b => b.onclick = () => { st.active = b.dataset.v === '1'; paint(); });
+  paint();
+  const close = () => { const e = $('#esSheet'); if (e) e.remove(); };
+  $('#esX').onclick = close;
+  $('#esSheet').onclick = e => { if (e.target.id === 'esSheet') close(); };
+  $('#esOk').onclick = async () => {
+    const d = { uid: x.uid, name: $('#esN').value.trim(), phone: $('#esP').value.trim(), role: st.role, active: st.active };
+    if (!d.name) return toast('กรุณากรอกชื่อ-นามสกุล');
+    const r = await run(() => api('staffUpdate', d));
+    close(); refresh('team', 'staff', 'sc'); CACHE.drop('ov'); STAFF = null;
+    toast(r.changed && r.changed.length ? 'บันทึกแล้ว' : 'ไม่มีการเปลี่ยนแปลง');
+    if (x.me && (d.role !== 'admin' || !d.active)) { CACHE.drop(); location.reload(); return; }
+    pageTeam();
+  };
+}
+/** หน้าต่างยืนยันแบบไม่ใช้ confirm() ของเบราว์เซอร์ */
+function confirmSheet(title, body, okText, fn) {
+  app.insertAdjacentHTML('beforeend', `<div class="sheet" id="cfSheet"><div class="sbox"><h2>${esc(title)}</h2><div class="hint">${esc(body)}</div>
+    <div class="row" style="margin-top:14px"><button class="btn sec" id="cfX">ยกเลิก</button><button class="btn" id="cfOk">${esc(okText)}</button></div></div></div>`);
+  const close = () => { const e = $('#cfSheet'); if (e) e.remove(); };
+  $('#cfX').onclick = close; $('#cfSheet').onclick = e => { if (e.target.id === 'cfSheet') close(); };
+  $('#cfOk').onclick = async () => { close(); await fn(); };
+}
+async function copyText(t, okMsg) {
+  try { await navigator.clipboard.writeText(t); toast(okMsg); return; } catch (e) { /* บางเครื่องใน LINE ไม่อนุญาต ใช้วิธีสำรอง */ }
+  const ta = document.createElement('textarea'); ta.value = t; ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0'; document.body.appendChild(ta);
+  ta.focus(); ta.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+  ta.remove(); toast(ok ? okMsg : 'คัดลอกไม่ได้ — กดค้างที่รหัสเพื่อคัดลอกเอง');
+}
 
 /* ---------- 6) ภาพรวม (Dashboard) ---------- */
 const CAT_COL = { 'CCTV & Access Control': '#7048E8', 'Network': '#F08C00', 'Software': '#2F9E44', 'Hardware': '#1C7ED6' };
@@ -878,7 +1081,7 @@ function drawDash(o) {
   const maxI = Math.max(1, ...o.topItems.map(b => b.n));
   $('#d').innerHTML = `
     <div class="dhead"><select id="mon">${o.months.map(m => `<option value="${m.ym}"${m.ym === o.ym ? ' selected' : ''}>${esc(m.label)}</option>`).join('')}</select>
-      <button class="btn sec sm" onclick="go('cal')">🗓 ตารางงาน</button><button class="btn sec sm" onclick="go('search')">🔍 ค้นประวัติ</button><button class="btn blue sm" onclick="go('staff')">จัดการงานทั้งหมด →</button></div>
+      <button class="btn sec sm" onclick="go('cal')">🗓 ตารางงาน</button><button class="btn sec sm" onclick="go('search')">🔍 ค้นประวัติ</button><button class="btn sec sm" onclick="go('team')">👥 เจ้าหน้าที่</button><button class="btn blue sm" onclick="go('staff')">จัดการงานทั้งหมด →</button></div>
     <div class="kpis">
       <div class="kpi"><div class="lb">งานแจ้งซ่อมเดือนนี้</div><div class="v">${s.total}</div><div class="dl">${delta(s.total, p.total, 0, ' งาน')}</div></div>
       <div class="kpi"><div class="lb">ปิดแล้ว / คงค้าง</div><div class="v">${s.closed} <span style="font-size:18px;color:var(--muted)">/ ${s.open}</span></div><div class="dl">${delta(s.open, p.open, -1, ' งานค้าง')}</div></div>
