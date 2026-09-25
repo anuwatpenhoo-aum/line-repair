@@ -108,7 +108,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--pri-soft);border
 .seg button{white-space:nowrap}
 .card.st.off{opacity:.62}
 .imgs.big img{width:calc(50% - 4px);height:auto;max-height:260px;aspect-ratio:4/3}
-.lb{position:fixed;inset:0;background:#000d;z-index:50;display:grid;place-items:center;padding:12px}.lb img{max-width:100%;max-height:100%;border-radius:8px}
+.zoomview{position:fixed;inset:0;background:#000d;z-index:50;display:grid;place-items:center;padding:12px}.zoomview img{max-width:100%;max-height:100%;border-radius:8px}
 .kbc{display:block;text-decoration:none;color:inherit}.kbc h3{margin:0 0 4px;font-size:16px}.kbc p{margin:0;color:var(--muted);font-size:13.5px}
 .kbc .meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--muted)}
 .tag{display:inline-block;padding:2px 8px;border-radius:99px;background:var(--pri-soft);color:var(--pri);font-size:12px;font-weight:600}
@@ -259,7 +259,7 @@ function loadPhotos() {
 // แตะรูปเพื่อดูเต็มจอ (รูปขั้นตอน/หน้าจอ ต้องอ่านตัวหนังสือได้)
 document.addEventListener('click', e => {
   const im = e.target.closest && e.target.closest('.imgs img');
-  if (im && im.src) { const v = document.createElement('div'); v.className = 'lb'; v.innerHTML = '<img src="' + im.src + '">'; v.onclick = () => v.remove(); document.body.appendChild(v); }
+  if (im && im.src) { const v = document.createElement('div'); v.className = 'zoomview'; v.innerHTML = '<img src="' + im.src + '">'; v.onclick = () => v.remove(); document.body.appendChild(v); }
 });
 
 function statusCls(s) {
