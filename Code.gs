@@ -1,11 +1,10 @@
-
 // ===== Config.gs =====
 /**
  * ระบบแจ้งซ่อมผ่าน LINE OA — ค่าคงที่และโครงสร้างข้อมูล
  * แก้ค่าที่เปลี่ยนบ่อย (ชื่อผู้ลงนาม, SLA, อีเมล ฯลฯ) ได้ในชีต Settings โดยไม่ต้องแก้โค้ด
  * ค่าที่เป็นความลับ (LINE Channel access token) เก็บใน Script Properties เท่านั้น
  */
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.2.0';
 /** Google Sheet ที่เป็นฐานข้อมูลของระบบ (ใช้เมื่อสคริปต์ไม่ได้ผูกกับชีตโดยตรง) */
 const SPREADSHEET_ID_DEFAULT = '14EPKByzciXuvzXCVr0gHLHrDjpWGwA_PZXRccW7-aRw';
 
@@ -232,6 +231,9 @@ function sheet_(name) {
 
 /** คืน map key -> column index (1-based) โดยจับจาก label ในแถวแรก */
 function colMap_(sh, fields) {
+  const memo = colMap_._m || (colMap_._m = {});
+  const ck = sh.getName();
+  if (memo[ck]) return memo[ck];
   const header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   const map = {};
   fields.forEach(([key, label]) => {
@@ -239,6 +241,7 @@ function colMap_(sh, fields) {
     if (i < 0) throw new Error('ชีต ' + sh.getName() + ' ไม่มีคอลัมน์ "' + label + '"');
     map[key] = i + 1;
   });
+  memo[ck] = map;
   return map;
 }
 
@@ -261,19 +264,40 @@ function appendObj_(shName, fields, obj) {
   const row = new Array(sh.getLastColumn()).fill('');
   fields.forEach(([k]) => { if (obj[k] !== undefined) row[map[k] - 1] = obj[k]; });
   sh.appendRow(row);
+  dropMemo_(shName);
   return sh.getLastRow();
 }
 
 function updateObj_(shName, fields, rowNum, patch) {
   const sh = sheet_(shName);
   const map = colMap_(sh, fields);
-  Object.keys(patch).forEach(k => {
-    if (map[k]) sh.getRange(rowNum, map[k]).setValue(patch[k]);
-  });
+  const keys = Object.keys(patch).filter(k => map[k]);
+  if (!keys.length) return;
+  // เขียนทีเดียวเป็นช่วงต่อเนื่อง ลดจำนวนคำสั่งไปยังชีต (เร็วกว่า setValue ทีละช่อง)
+  const cols = keys.map(k => map[k]);
+  const c1 = Math.min.apply(null, cols), c2 = Math.max.apply(null, cols);
+  if (c2 - c1 + 1 <= keys.length * 4) {
+    const cur = sh.getRange(rowNum, c1, 1, c2 - c1 + 1).getValues()[0];
+    keys.forEach(k => { cur[map[k] - c1] = patch[k]; });
+    sh.getRange(rowNum, c1, 1, c2 - c1 + 1).setValues([cur]);
+  } else {
+    keys.forEach(k => sh.getRange(rowNum, map[k]).setValue(patch[k]));
+  }
+  dropMemo_(shName);
+}
+
+/** ===== memo ต่อ 1 รอบการทำงาน (กันอ่านชีตซ้ำหลายรอบใน request เดียว) ===== */
+function dropMemo_(shName) {
+  if (shName === SH.REQ) allTickets_._m = null;
+  if (shName === SH.STAFF) allStaff_._m = null;
+  if (shName === SH.USERS) allUsers_._m = null;
 }
 
 /** ===== Tickets ===== */
-function allTickets_() { return readAll_(SH.REQ, REQ_FIELDS).filter(t => t.no !== '' && t.no !== null); }
+function allTickets_() {
+  if (allTickets_._m) return allTickets_._m;
+  return (allTickets_._m = readAll_(SH.REQ, REQ_FIELDS).filter(t => t.no !== '' && t.no !== null));
+}
 function getTicket_(no) {
   no = Number(no);
   const t = allTickets_().find(x => Number(x.no) === no);
@@ -307,7 +331,10 @@ function logError_(err, ctx) {
 }
 
 /** ===== Staff ===== */
-function allStaff_() { return readAll_(SH.STAFF, STAFF_FIELDS).filter(s => s.uid); }
+function allStaff_() {
+  if (allStaff_._m) return allStaff_._m;
+  return (allStaff_._m = readAll_(SH.STAFF, STAFF_FIELDS).filter(s => s.uid));
+}
 function staffByUid_(uid) {
   return allStaff_().find(s => s.uid === uid && (s.active === true || String(s.active).toUpperCase() === 'TRUE')) || null;
 }
@@ -316,9 +343,14 @@ function activeStaff_(role) {
 }
 
 /** ===== ผู้แจ้ง (ลงทะเบียน) ===== */
+function allUsers_() {
+  if (allUsers_._m) return allUsers_._m;
+  if (!ss_().getSheetByName(SH.USERS)) return [];
+  return (allUsers_._m = readAll_(SH.USERS, USER_FIELDS));
+}
 function userByUid_(uid) {
-  if (!uid || !ss_().getSheetByName(SH.USERS)) return null;
-  return readAll_(SH.USERS, USER_FIELDS).find(u => u.uid === uid) || null;
+  if (!uid) return null;
+  return allUsers_().find(u => u.uid === uid) || null;
 }
 
 /** ===== Settings ===== */
@@ -731,6 +763,7 @@ function handleApi_(req) {
     case 'submit': return apiSubmit_(me, d);
     case 'myTickets': return apiMyTickets_(me);
     case 'getTicket': return apiGetTicket_(me, d.no);
+    case 'photo': return apiPhoto_(me, d);
     case 'ack': return apiAck_(me, d.no);
     case 'accept': return apiAccept_(me, d);
     case 'register': return apiRegister_(me, d);
@@ -760,7 +793,7 @@ function canWork_(me, t) { return me.role === 'admin' || (me.staff && t.assigned
 function canView_(me, t) { return !!me.staff || t.reporter_uid === me.uid; }
 
 /* ---------- ข้อมูลที่ส่งให้หน้าเว็บ ---------- */
-function toClient_(t, full) {
+function toClient_(t, full, withTimeline) {
   const o = {
     no: t.no, status: t.status, created: thaiDateTime_(t.created_at),
     reporter_name: t.reporter_name, department: t.department, phone: t.phone,
@@ -781,12 +814,13 @@ function toClient_(t, full) {
     accept_result: t.accept_result, accept_reason: t.accept_reason, rating: t.rating,
     signer_name: t.signer_name, accepted: thaiDateTime_(t.accepted_at),
     pause_days: Number(t.pause_days || 0) + Number(t.rework_pause_days || 0), rework_iso: t.rework_iso,
-    photos: idsOf_(t.photo_ids).slice(0, 4).map(fileToDataUrl_),
-    after_photos: idsOf_(t.after_photo_ids).slice(0, 4).map(fileToDataUrl_),
-    pdf_url: t.pdf_id ? fileUrl_(t.pdf_id) : '',
-    timeline: readAll_(SH.LOG, LOG_FIELDS).filter(l => Number(l.no) === Number(t.no))
-      .map(l => ({ ts: thaiDateTime_(l.ts), action: l.action, by: l.by_name, to: l.to_status }))
+    // ส่งเฉพาะ id ของรูป หน้าเว็บจะทยอยโหลดทีหลัง (action 'photo') — หน้าจึงขึ้นทันที
+    photos: idsOf_(t.photo_ids).slice(0, 4),
+    after_photos: idsOf_(t.after_photo_ids).slice(0, 4),
+    pdf_url: t.pdf_id ? fileUrl_(t.pdf_id) : ''
   });
+  if (full && withTimeline) o.timeline = readAll_(SH.LOG, LOG_FIELDS).filter(l => Number(l.no) === Number(t.no))
+    .map(l => ({ ts: thaiDateTime_(l.ts), action: l.action, by: l.by_name, to: l.to_status }));
   return o;
 }
 
@@ -857,14 +891,25 @@ function apiSubmit_(me, d) {
 
 function apiMyTickets_(me) {
   const list = allTickets_().filter(t => t.reporter_uid === me.uid)
-    .sort((a, b) => b.no - a.no).slice(0, 30).map(t => toClient_(t, false));
+    .sort((a, b) => b.no - a.no).slice(0, 30)
+    .map((t, i) => toClient_(t, i < 10));   // 10 ใบล่าสุดส่งรายละเอียดเต็ม กดดูได้ทันที
   return { tickets: list };
 }
 
 function apiGetTicket_(me, no) {
   const t = getTicket_(no);
   if (!canView_(me, t)) throw new Error('ไม่มีสิทธิ์ดูใบแจ้งซ่อมนี้');
-  return { ticket: toClient_(t, true), canWork: canWork_(me, t), isReporter: t.reporter_uid === me.uid };
+  return { ticket: toClient_(t, true, !!me.staff), canWork: canWork_(me, t), isReporter: t.reporter_uid === me.uid };
+}
+
+/** โหลดรูปทีละใบ (หน้าเว็บเรียกหลังวาดหน้าเสร็จ) */
+function apiPhoto_(me, d) {
+  const t = getTicket_(d.no);
+  if (!canView_(me, t)) throw new Error('ไม่มีสิทธิ์ดูใบแจ้งซ่อมนี้');
+  const id = str_(d.id);
+  const own = idsOf_(t.photo_ids).concat(idsOf_(t.after_photo_ids));
+  if (own.indexOf(id) < 0) throw new Error('ไม่พบรูปนี้ในใบแจ้งซ่อม');
+  return { id: id, src: fileToDataUrl_(id) };
 }
 
 function apiAck_(me, no) {
@@ -1040,10 +1085,13 @@ function apiStaffTickets_(me) {
   if (me.role === 'admin') list = all.filter(t => OPEN_STATUSES.indexOf(t.status) >= 0 || new Date(t.created_at) >= cutoff);
   else list = all.filter(t => (t.assigned_uid === me.uid && (OPEN_STATUSES.indexOf(t.status) >= 0 || new Date(t.created_at) >= cutoff)) || t.status === STATUS.NEW);
   list.sort((a, b) => b.no - a.no);
+  const month = fmt_(new Date(), 'yyyy-MM');
   return {
-    tickets: list.map(t => toClient_(t, false)),
+    // งานที่ยังไม่ปิด ส่งรายละเอียดเต็มมาเลย (ไม่รวมประวัติ) หน้าเว็บจะเปิดใบงานได้ทันทีโดยไม่ต้องยิงใหม่
+    tickets: list.map(t => toClient_(t, OPEN_STATUSES.indexOf(t.status) >= 0)),
     techs: activeStaff_().map(s => ({ uid: s.uid, name: s.name, role: s.role })),
-    me: { uid: me.uid, name: me.name, role: me.role, hasSignature: !!me.staff.sig_id }
+    me: { uid: me.uid, name: me.name, role: me.role, hasSignature: !!me.staff.sig_id },
+    month: month, stats: monthStats_(month)   // รวมมาในครั้งเดียว ไม่ต้องยิง dashboard ซ้ำ
   };
 }
 
@@ -1915,6 +1963,7 @@ function ensureSheet_(name, fields, color) {
   sh.getRange(1, 1, 1, sh.getLastColumn()).setFontWeight('bold').setBackground(color).setFontColor('#FFFFFF').setWrap(true).setVerticalAlignment('middle');
   sh.setFrozenRows(1);
   if (name === SH.REQ) sh.setFrozenColumns(3);
+  colMap_._m = null; allTickets_._m = null; allStaff_._m = null; allUsers_._m = null;
   return sh;
 }
 
