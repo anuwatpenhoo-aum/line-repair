@@ -419,7 +419,7 @@ const DEFAULT_OPTIONS = {
 };
 const DEFAULT_CAT_COLORS = { 'CCTV & Access Control': '#7048E8', 'Network': '#F08C00', 'Software': '#2F9E44', 'Hardware': '#1C7ED6' };
 /** รายการที่มีช่องติ๊กอยู่ในเทมเพลตใบแจ้งซ่อม (รายการใหม่จะแสดงในบรรทัด "อื่นๆ") */
-const TEMPLATE_ITEM_IDS = ['i1_1', 'i1_2', 'i1_3', 'i1_4', 'i2_1', 'i2_2', 'i2_3', 'i2_4', 'i3_1', 'i3_2', 'i3_3', 'i4_1'];
+const TEMPLATE_ITEM_IDS = ['i1_1', 'i1_2', 'i1_3', 'i1_4', 'i1_5', 'i2_1', 'i2_2', 'i2_3', 'i2_4', 'i3_1', 'i3_2', 'i3_3', 'i4_1'];
 
 function isOn_(v) { return v === true || String(v).toUpperCase() === 'TRUE'; }
 
@@ -1259,7 +1259,7 @@ function handleEvent_(ev) {
 // ===== Docs.gs =====
 /** ===== สร้าง PDF ใบแจ้งซ่อม (FM-PPM-2-01) จากเทมเพลต Google Docs ===== */
 
-const CHK = '✔', UNCHK = '';
+const CHK = '☑', UNCHK = '☐';
 
 function generateTicketPdf_(t) {
   const tplId = setting_('TICKET_TEMPLATE_ID', '');

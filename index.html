@@ -109,6 +109,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--pri-soft);border
 .spin{width:36px;height:36px;border:4px solid var(--pri-soft);border-top-color:var(--pri);border-radius:50%;animation:s 1s linear infinite}
 @keyframes s{to{transform:rotate(360deg)}}
 .imgs{display:flex;gap:8px;flex-wrap:wrap}.imgs img{width:96px;height:96px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
+.imgs img.lz,.imgs img.lzw{background:var(--pri-soft) linear-gradient(100deg,#0000 30%,#fff8 50%,#0000 70%) 0 0/300% 100%;animation:sh 1.1s linear infinite}
+@keyframes sh{to{background-position:-150% 0}}
+#upd{position:fixed;top:0;left:0;right:0;height:3px;z-index:40;background:linear-gradient(90deg,var(--pri-soft),var(--pri),var(--pri-soft));background-size:220% 100%;animation:ld 1s linear infinite}
+@keyframes ld{to{background-position:-220% 0}}
 .hr{height:1px;background:var(--line);margin:12px 0}
 .hidden{display:none!important}
 
@@ -138,6 +142,8 @@ table.tt td{text-align:center;padding:8px 4px;border-bottom:1px solid var(--line
 .rlist .kd{font-size:11px;font-weight:700;border-radius:6px;padding:1px 7px;color:#fff;background:#2A6BD8}.rlist .kd.pdf{background:#C92A2A}
 .legend{display:flex;gap:14px;font-size:12.5px;color:var(--muted);margin-top:4px}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 </style>
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
 </head>
 <body>
 <div id="app"></div>
@@ -157,7 +163,9 @@ const busy = on => $('#loading').classList.toggle('hidden', !on);
 function toast(msg, ms) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), ms || 2600); }
 const LS = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
 
+let READY = null;                      // พร้อมยิง API เมื่อ LIFF ให้ idToken แล้ว
 async function api(action, data) {
+  if (READY) await READY;
   if (MOCK) return window.mockApi(action, data || {});
   const res = await fetch(CFG.GAS_URL, { method: 'POST', body: JSON.stringify({ action, idToken: ID_TOKEN, data: data || {} }) });
   const j = await res.json();
@@ -168,6 +176,60 @@ async function api(action, data) {
   return j;
 }
 async function run(fn) { busy(true); try { return await fn(); } catch (e) { toast(e.message || String(e), 4000); throw e; } finally { busy(false); } }
+
+/* ---- แคชในเครื่อง: วาดของเดิมทันที แล้วค่อยอัปเดตเบื้องหลัง ---- */
+const CK = 'rq1_';
+const CACHE = {
+  get(k) { return LS.get(CK + k, null); },
+  set(k, v) { LS.set(CK + k, v); },
+  drop(pre) { try { Object.keys(localStorage).forEach(k => { if (k.indexOf(CK + (pre || '')) === 0) localStorage.removeItem(k); }); } catch (e) {} }
+};
+let NAV = 0;                            // กันข้อมูลที่มาช้าทับหน้าใหม่
+/** วาดจากแคชก่อน (ถ้ามี) แล้วดึงของจริงมาวาดทับ */
+/** เก็บใบงานที่มาพร้อมรายการ ลงแคชรายใบ → กดเข้าไปดูขึ้นทันที */
+function prime(r, isReporter, me) {
+  (r.tickets || []).forEach(t => {
+    if (t.item_ids === undefined) return;         // มาแบบย่อ ยังต้องดึงเพิ่ม
+    CACHE.set('t' + t.no, { ticket: t, isReporter: isReporter, canWork: !isReporter && !!me && (me.role === 'admin' || t.assigned_uid === me.uid) });
+  });
+}
+async function swr(key, call, render) {
+  const my = ++NAV, old = CACHE.get(key);
+  if (old) { render(old, true); mark(true); } else busy(true);
+  try {
+    const fresh = await call();
+    CACHE.set(key, fresh);
+    if (my === NAV) render(fresh, false);
+  } catch (e) {
+    if (my === NAV && !old) { app.innerHTML += `<div class="wrap"><div class="note warn">${esc(e.message || e)}</div></div>`; }
+    else if (my === NAV) toast(e.message || String(e), 4000);
+  } finally { if (my === NAV) { busy(false); mark(false); } }
+}
+/** แถบบางๆ บอกว่ากำลังอัปเดตข้อมูลอยู่ (ไม่บังหน้าจอ) */
+function mark(on) {
+  let b = $('#upd');
+  if (on) { if (!b) { b = document.createElement('div'); b.id = 'upd'; document.body.appendChild(b); } }
+  else if (b) b.remove();
+}
+
+/* ---- รูปภาพ: โหลดหลังวาดหน้าเสร็จ ---- */
+const PHOTOS = {};
+function imgsHtml(no, ids) {
+  if (!ids || !ids.length) return '';
+  return '<div class="imgs">' + ids.map(id => PHOTOS[id]
+    ? `<img src="${PHOTOS[id]}">`
+    : `<img class="lz" data-no="${esc(no)}" data-p="${esc(id)}">`).join('') + '</div>';
+}
+function loadPhotos() {
+  app.querySelectorAll('img.lz').forEach(async el => {
+    const id = el.dataset.p;
+    el.classList.remove('lz'); el.classList.add('lzw');
+    try {
+      const r = PHOTOS[id] ? { src: PHOTOS[id] } : await api('photo', { no: el.dataset.no, id: id });
+      if (r.src) { PHOTOS[id] = r.src; el.src = r.src; el.classList.remove('lzw'); }
+    } catch (e) { el.remove(); }
+  });
+}
 
 function statusCls(s) {
   return { 'รอมอบหมาย': 's-new', 'มอบหมายแล้ว': 's-asg', 'นัดหมายแล้ว': 's-pln', 'พักงาน': 's-pau', 'รอตรวจงาน': 's-wa', 'ส่งกลับแก้ไข': 's-rej', 'ดำเนินการเสร็จสิ้น': 's-cls', 'ยกเลิก': 's-cxl' }[s] || 's-cls';
@@ -286,7 +348,7 @@ function pageReg() {
       : (!d.building && !d.floor && !d.room) ? 'สถานที่ทำงานประจำ อย่างน้อย 1 ช่อง' : !d.pdpa ? 'การยินยอมเก็บข้อมูล' : '';
     if (miss) return toast('กรุณากรอก: ' + miss);
     const r = await run(() => api('saveProfile', d));
-    INIT.me.profile = r.profile; toast(first ? 'ลงทะเบียนสำเร็จ' : 'บันทึกแล้ว'); go(first ? 'form' : 'mine');
+    INIT.me.profile = r.profile; CACHE.set('init', INIT); toast(first ? 'ลงทะเบียนสำเร็จ' : 'บันทึกแล้ว'); go(first ? 'form' : 'mine');
   };
 }
 
@@ -346,6 +408,7 @@ function pageForm() {
     if (miss) return toast('กรุณากรอก: ' + miss);
     LS.set('reporter', { building: d.building, floor: d.floor, room: d.room });
     const r = await run(() => api('submit', d));
+    refresh('mine', 'staff'); CACHE.drop('ov');
     try { if (!MOCK && liff.isInClient()) await liff.sendMessages([{ type: 'text', text: 'แจ้งซ่อม #' + r.no }]); } catch (e) { /* ไม่ได้เปิดจากแชต */ }
     app.innerHTML = topBar('ส่งแจ้งซ่อมแล้ว') + `<div class="wrap center"><div class="done-ic">✓</div>
       <h2 style="margin:0">เลขรับแจ้ง #${r.no}</h2><p class="muted">กำหนดแล้วเสร็จ ${esc(r.due || '')}<br>เจ้าหน้าที่จะแจ้งนัดหมายและสถานะทาง LINE</p>
@@ -357,8 +420,10 @@ function pageForm() {
 /* ---------- 2) งานของฉัน (ผู้แจ้ง) ---------- */
 async function pageMine() {
   app.innerHTML = topBar('ติดตามงานแจ้งซ่อม') + '<div class="wrap" id="list"><div class="empty">กำลังโหลด...</div></div><div class="center small" style="margin:6px 0 14px"><a href="javascript:void 0" onclick="go(\'reg\')">👤 ข้อมูลของฉัน</a></div><div class="bar"><div class="in"><button class="btn" onclick="go(\'form\')">＋ แจ้งซ่อมใหม่</button></div></div>';
-  const r = await run(() => api('myTickets'));
-  $('#list').innerHTML = r.tickets.length ? r.tickets.map(tkCard).join('') : '<div class="empty">ยังไม่มีรายการแจ้งซ่อม</div>';
+  await swr('mine', () => api('myTickets'), r => {
+    prime(r, true);
+    $('#list').innerHTML = r.tickets.length ? r.tickets.map(t => tkCard(t)).join('') : '<div class="empty">ยังไม่มีรายการแจ้งซ่อม</div>';
+  });
 }
 function tkCard(t, staffView) {
   const action = !staffView && t.status === 'รอตรวจงาน' ? '<span class="badge s-wa">แตะเพื่อตรวจงาน</span>' : !staffView && t.status === 'นัดหมายแล้ว' && !t.acked ? '<span class="badge s-pln">รอคุณรับทราบนัด</span>' : '';
@@ -379,10 +444,10 @@ function ticketDetailHtml(t, showTimeline) {
     ${dl([['วันที่แจ้ง', t.created], ['ผู้แจ้ง', t.reporter_name], ['หน่วยงาน', t.department], ['โทร', t.phone],
       ['สถานที่', [t.building, t.floor ? 'ชั้น ' + t.floor : '', t.room ? 'ห้อง ' + t.room : ''].filter(Boolean).join(' ')],
       ['รายการ', t.items_text], ['รายละเอียด', t.detail], ['เจ้าของบัตร', t.card_name], ['เลขบัตร', t.card_no], ['ประเภท', t.category], ['กำหนดเสร็จ', t.due]])}
-    ${t.photos && t.photos.length ? '<label class="f">รูปประกอบ</label><div class="imgs">' + t.photos.map(s => `<img src="${s}">`).join('') + '</div>' : ''}</div>
+    ${t.photos && t.photos.length ? '<label class="f">รูปประกอบ</label>' + imgsHtml(t.no, t.photos) : ''}</div>
     ${t.assigned_name ? `<div class="card"><h2>การดำเนินงาน</h2>${dl([['ช่าง', t.assigned_name], ['นัดเข้าทำ', t.appoint], ['ผลประเมิน', t.plan ? t.plan + (t.plan_days ? ' ภายใน ' + t.plan_days + ' วัน' : '') : ''],
       ['หมายเหตุ', t.plan_note], ['ผู้แจ้งรับทราบ', t.ack], ['สาเหตุที่พบ', t.cause], ['การแก้ไข', t.solution], ['คำแนะนำ', t.advice], ['รหัสครุภัณฑ์', t.asset_code], ['วันที่เสร็จ', t.done], ['วันพักงาน', t.pause_days ? t.pause_days + ' วัน (ไม่นับ KPI)' : ''], ['ISO งานใหม่', t.iso], ['ISO งานแก้', t.rework_iso]])}
-      ${t.after_photos && t.after_photos.length ? '<label class="f">รูปหลังดำเนินการ</label><div class="imgs">' + t.after_photos.map(s => `<img src="${s}">`).join('') + '</div>' : ''}</div>` : ''}
+      ${t.after_photos && t.after_photos.length ? '<label class="f">รูปหลังดำเนินการ</label>' + imgsHtml(t.no, t.after_photos) : ''}</div>` : ''}
     ${t.accept_result ? `<div class="card"><h2>การตรวจงาน</h2>${dl([['ผล', t.accept_result === 'แล้วเสร็จ' ? 'ผ่าน' : 'ส่งกลับแก้ไข'], ['เหตุผล', t.accept_reason], ['คะแนน', t.rating ? t.rating + ' / 5' : ''], ['ผู้ลงนาม', t.signer_name], ['เมื่อ', t.accepted]])}</div>` : ''}
     ${showTimeline ? `<div class="card"><h2>ประวัติการดำเนินการ</h2><ul class="tl">${(t.timeline || []).map(l => `<li><div>${esc(l.action)}${l.by ? ' · ' + esc(l.by) : ''}</div><div class="ts">${esc(l.ts)}</div></li>`).join('')}</ul></div>` : ''}`;
 }
@@ -423,30 +488,41 @@ function reporterViewHtml(t) {
     `<div class="card"><h2>เรื่องที่แจ้ง</h2>${dl([['วันที่แจ้ง', t.created],
       ['สถานที่', [t.building, t.floor ? 'ชั้น ' + t.floor : '', t.room ? 'ห้อง ' + t.room : ''].filter(Boolean).join(' ')],
       ['รายการ', t.items_text], ['รายละเอียด', t.detail]])}
-      ${t.photos && t.photos.length ? '<label class="f">รูปที่แนบ</label><div class="imgs">' + t.photos.map(x => `<img src="${x}">`).join('') + '</div>' : ''}</div>` +
+      ${t.photos && t.photos.length ? '<label class="f">รูปที่แนบ</label>' + imgsHtml(t.no, t.photos) : ''}</div>` +
     (t.done ? `<div class="card"><h2>ผลการซ่อม</h2>${dl([['ช่างผู้ปฏิบัติงาน', t.assigned_name], ['วันที่เสร็จ', t.done], ['สาเหตุที่พบ', t.cause], ['การแก้ไข', t.solution], ['คำแนะนำ', t.advice]])}
-      ${t.after_photos && t.after_photos.length ? '<label class="f">รูปหลังดำเนินการ</label><div class="imgs">' + t.after_photos.map(x => `<img src="${x}">`).join('') + '</div>' : ''}</div>` : '') +
+      ${t.after_photos && t.after_photos.length ? '<label class="f">รูปหลังดำเนินการ</label>' + imgsHtml(t.no, t.after_photos) : ''}</div>` : '') +
     (t.accept_result ? `<div class="card"><h2>การตรวจรับ</h2>${dl([['ผล', t.accept_result === 'แล้วเสร็จ' ? 'ผ่าน' : 'ส่งกลับแก้ไข'], ['สิ่งที่ต้องแก้ไข', t.accept_reason],
       ['คะแนนที่ให้', t.rating ? '★'.repeat(t.rating) + '☆'.repeat(5 - t.rating) + '  (' + t.rating + '/5)' : ''], ['ผู้ลงนาม', t.signer_name], ['เมื่อ', t.accepted]])}
       ${t.pdf_url ? `<a class="btn sec" style="text-align:center;text-decoration:none;display:block" href="${t.pdf_url}" target="_blank">📄 เปิดใบแจ้งซ่อม PDF</a>` : ''}</div>` : '');
 }
 async function pageTicket(no) {
   app.innerHTML = topBar('ติดตามงาน #' + no, 'mine') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div><div class="bar hidden" id="bar"><div class="in" id="barIn"></div></div>';
-  const r = await run(() => api('getTicket', { no }));
-  const t = r.ticket;
-  $('#d').innerHTML = r.isReporter && !r.canWork ? reporterViewHtml(t) : ticketDetailHtml(t, true);
-  const btns = [];
-  if (r.isReporter && t.status === 'นัดหมายแล้ว' && !t.acked) btns.push('<button class="btn blue" id="ack">รับทราบนัดหมาย</button>');
-  if (r.isReporter && t.status === 'รอตรวจงาน') btns.push(`<button class="btn" onclick="go('accept','${t.no}')">ตรวจงาน (ผ่าน / แก้ไข)</button>`);
-  if (btns.length) { $('#barIn').innerHTML = btns.join(''); $('#bar').classList.remove('hidden'); }
-  const a = $('#ack'); if (a) a.onclick = async () => { await run(() => api('ack', { no })); toast('รับทราบนัดหมายแล้ว'); pageTicket(no); };
+  await swr('t' + no, () => api('getTicket', { no }), r => {
+    const t = r.ticket;
+    $('#d').innerHTML = r.isReporter && !r.canWork ? reporterViewHtml(t) : ticketDetailHtml(t, true);
+    loadPhotos();
+    const btns = [];
+    if (r.isReporter && t.status === 'นัดหมายแล้ว' && !t.acked) btns.push('<button class="btn blue" id="ack">รับทราบนัดหมาย</button>');
+    if (r.isReporter && t.status === 'รอตรวจงาน') btns.push(`<button class="btn" onclick="go('accept','${t.no}')">ตรวจงาน (ผ่าน / แก้ไข)</button>`);
+    $('#barIn').innerHTML = btns.join(''); $('#bar').classList.toggle('hidden', !btns.length);
+    const a = $('#ack'); if (a) a.onclick = async () => { await run(() => api('ack', { no })); toast('รับทราบนัดหมายแล้ว'); refresh('t' + no, 'mine'); pageTicket(no); };
+  });
 }
+/** ลบแคชที่ล้าสมัยหลังจากมีการเปลี่ยนแปลงข้อมูล */
+function refresh() { Array.prototype.forEach.call(arguments, k => { try { localStorage.removeItem(CK + k); } catch (e) {} }); }
 
 /* ---------- 4) ตรวจรับงาน + ลายเซ็น ---------- */
 async function pageAccept(no) {
   const onsite = new URL(location.href).searchParams.get('onsite') === '1';
   app.innerHTML = topBar('ตรวจงาน #' + no, onsite ? 'staff' : 'mine') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div>';
-  const r = await run(() => api('getTicket', { no }));
+  let drawn = '';
+  await swr('t' + no, () => api('getTicket', { no }), r => {
+    const sig = [r.ticket.status, r.ticket.cause, r.ticket.solution, (r.ticket.after_photos || []).join()].join('|');
+    if (sig === drawn) return;            // ข้อมูลเหมือนเดิม ไม่ต้องวาดใหม่ (กันลายเซ็นที่เซ็นค้างไว้หาย)
+    drawn = sig; drawAccept(r, no, onsite);
+  });
+}
+function drawAccept(r, no, onsite) {
   const t = r.ticket;
   if (t.status !== 'รอตรวจงาน') { $('#d').innerHTML = `<div class="note warn">ใบแจ้งซ่อมนี้อยู่ในสถานะ “${esc(t.status)}” ไม่ต้องตรวจงาน</div>` + (onsite ? ticketDetailHtml(t, true) : reporterViewHtml(t)); return; }
   const st = { result: 'pass', rating: 0 };
@@ -454,7 +530,7 @@ async function pageAccept(no) {
   $('#d').innerHTML = `${onsite ? '<div class="note">ให้ผู้รับบริการ/ผู้อยู่หน้างานตรวจสอบและลงนามบนเครื่องนี้</div>' : ''}
     <div class="card"><h2>งานที่ดำเนินการ</h2><dl class="kv"><dt>รายการ</dt><dd>${esc(t.items_text)}</dd><dt>สาเหตุที่พบ</dt><dd>${esc(t.cause)}</dd>
       <dt>การแก้ไข</dt><dd>${esc(t.solution)}</dd>${t.advice ? `<dt>คำแนะนำ</dt><dd>${esc(t.advice)}</dd>` : ''}<dt>ช่าง</dt><dd>${esc(t.assigned_name)}</dd><dt>วันที่เสร็จ</dt><dd>${esc(t.done)}</dd></dl>
-      ${t.after_photos && t.after_photos.length ? '<label class="f">รูปหลังดำเนินการ</label><div class="imgs">' + t.after_photos.map(s => `<img src="${s}">`).join('') + '</div>' : ''}</div>
+      ${t.after_photos && t.after_photos.length ? '<label class="f">รูปหลังดำเนินการ</label>' + imgsHtml(t.no, t.after_photos) : ''}</div>
     <div class="card"><h2>ภาควิชา/หน่วยงาน พิจารณาแล้ว เห็นว่างานที่ได้รับมอบหมาย</h2>
       <div class="seg"><button type="button" class="on" data-r="pass">✓ ผ่าน</button><button type="button" data-r="fail">✎ แก้ไข</button></div>
       <div id="rsBox" class="hidden"><label class="f">สิ่งที่ต้องแก้ไข <b>*</b></label><textarea id="reason" placeholder="ระบุสิ่งที่ยังไม่เรียบร้อย ช่างจะแก้ไขภายใน ${INIT.slaDays} วัน"></textarea></div>
@@ -464,6 +540,7 @@ async function pageAccept(no) {
       <input type="text" id="signer" value="${esc(onsite ? '' : t.reporter_name)}"><label class="f">ลายเซ็น <b>*</b></label><div class="sig" id="sig"></div></div>
     <div style="height:8px"></div>`;
   app.insertAdjacentHTML('beforeend', '<div class="bar"><div class="in"><button class="btn" id="send">ยืนยันผลตรวจงาน</button></div></div>');
+  loadPhotos();
   app.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
     st.result = b.dataset.r; app.querySelectorAll('.seg button').forEach(x => x.classList.toggle('on', x === b));
     b.classList.toggle('bad', st.result === 'fail'); $('#rsBox').classList.toggle('hidden', st.result !== 'fail');
@@ -475,6 +552,7 @@ async function pageAccept(no) {
     const miss = st.result === 'fail' && !d.reason ? 'สิ่งที่ต้องแก้ไข' : !d.rating ? 'คะแนนประเมิน' : !d.signer_name ? 'ชื่อผู้ลงนาม' : !d.signature ? 'ลายเซ็น' : '';
     if (miss) return toast('กรุณากรอก: ' + miss);
     await run(() => api('accept', d));
+    refresh('t' + no, 'mine', 'staff'); CACHE.drop('ov');
     try { if (!onsite && !MOCK && liff.isInClient()) await liff.sendMessages([{ type: 'text', text: 'ตรวจงาน #' + no }]); } catch (e) {}
     app.innerHTML = topBar('บันทึกผลตรวจงานแล้ว') + `<div class="wrap center"><div class="done-ic">✓</div><h2 style="margin:0">#${no} ${st.result === 'pass' ? 'ผ่าน · ปิดงานเรียบร้อย' : 'ส่งกลับให้ช่างแก้ไขแล้ว'}</h2>
       <p class="muted">${st.result === 'pass' ? 'ระบบจัดทำใบแจ้งซ่อมฉบับลงนาม (PDF) แล้ว ขอบคุณที่ใช้บริการ' : 'ช่างได้รับแจ้งแล้ว และจะแก้ไขภายใน ' + INIT.slaDays + ' วัน'}</p>
@@ -487,8 +565,9 @@ let STAFF = null, TAB = LS.get('staffTab', 'todo');
 async function pageStaff() {
   if (INIT.me.role === 'user') return pageRegister();
   app.innerHTML = topBar('งานแจ้งซ่อม · เจ้าหน้าที่', 'dash') + '<div class="wrap" id="s"><div class="empty">กำลังโหลด...</div></div>';
-  const [r, dash] = await run(() => Promise.all([api('staffTickets'), api('dashboard', {})]));
-  STAFF = r;
+  await swr('staff', () => api('staffTickets'), r => { STAFF = r; prime(r, false, r.me); drawStaff(r); });
+}
+function drawStaff(r) {
   const me = r.me, list = r.tickets;
   const groups = {
     todo: list.filter(t => t.status === 'รอมอบหมาย'),
@@ -497,7 +576,7 @@ async function pageStaff() {
     done: list.filter(t => ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) >= 0)
   };
   const names = { todo: 'รอมอบหมาย', work: 'กำลังดำเนินการ', wait: 'รอตรวจงาน', done: 'ปิดแล้ว' };
-  const s = dash.stats;
+  const s = r.stats || { total: 0, open: 0, isoPct: null, avgRating: null };
   $('#s').innerHTML = `${!me.hasSignature ? `<div class="note warn">ยังไม่ได้บันทึกลายเซ็นช่าง (ใช้ในใบแจ้งซ่อม) <a href="javascript:void 0" onclick="go('mysig')"><b>บันทึกตอนนี้</b></a></div>` : ''}
     <div class="stats"><div class="stat"><b>${s.total}</b><span>งานเดือนนี้</span></div><div class="stat"><b>${s.open}</b><span>คงค้าง</span></div>
     <div class="stat"><b>${s.isoPct === null ? '-' : s.isoPct + '%'}</b><span>ทันใน ${INIT.slaDays} วัน</span></div><div class="stat"><b>${s.avgRating === null ? '-' : s.avgRating}</b><span>ความพึงพอใจ</span></div></div>
@@ -516,7 +595,7 @@ function pageRegister() {
     <div class="bar"><div class="in"><button class="btn" id="reg">ลงทะเบียน</button></div></div>`;
   $('#reg').onclick = async () => {
     const r = await run(() => api('register', { code: $('#code').value.trim(), name: $('#nm').value.trim(), phone: $('#ph').value.trim() }));
-    INIT.me.role = r.role; toast('ลงทะเบียนสำเร็จ'); go('mysig');
+    INIT.me.role = r.role; CACHE.drop(); toast('ลงทะเบียนสำเร็จ'); go('mysig');
   };
 }
 
@@ -527,14 +606,32 @@ function pageMySig() {
   $('#save').onclick = async () => {
     if (sig.isEmpty()) return toast('กรุณาเซ็นชื่อ');
     await run(() => api('saveSignature', { signature: sig.toDataURL() }));
-    INIT.me.hasSignature = true; toast('บันทึกลายเซ็นแล้ว'); go('staff');
+    INIT.me.hasSignature = true; CACHE.set('init', INIT); refresh('staff'); STAFF = null; toast('บันทึกลายเซ็นแล้ว'); go('staff');
   };
 }
 
 async function pageJob(no) {
   app.innerHTML = topBar('งาน #' + no, 'staff') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div>';
-  const [r, s] = await run(() => Promise.all([api('getTicket', { no }), STAFF ? Promise.resolve(STAFF) : api('staffTickets')]));
-  STAFF = s;
+  if (!STAFF) STAFF = CACHE.get('staff');
+  const my = ++NAV, cached = CACHE.get('t' + no);
+  let drawn = '';
+  const draw = (r, s) => {
+    const sg = JSON.stringify(Object.assign({}, r.ticket, { timeline: 0 }));
+    if (sg === drawn) return;
+    drawn = sg; drawJob(r, s, no);
+  };
+  if (cached && STAFF) { draw(cached, STAFF); mark(true); } else busy(true);
+  try {
+    const [r, s] = await Promise.all([api('getTicket', { no }), STAFF ? Promise.resolve(STAFF) : api('staffTickets')]);
+    CACHE.set('t' + no, r); if (!STAFF) CACHE.set('staff', s);
+    STAFF = s;
+    if (my === NAV) draw(r, s);
+  } catch (e) {
+    if (my === NAV && !(cached && STAFF)) $('#d').innerHTML = `<div class="note warn">${esc(e.message || e)}</div>`;
+    else if (my === NAV) toast(e.message || String(e), 4000);
+  } finally { if (my === NAV) { busy(false); mark(false); } }
+}
+function drawJob(r, s, no) {
   const t = r.ticket, me = s.me, isAdmin = me.role === 'admin', mine = t.assigned_uid === me.uid;
   const can = isAdmin || mine;
   const sections = [];
@@ -596,20 +693,22 @@ async function pageJob(no) {
   if (t.pdf_url) sections.push(`<div class="card"><a class="btn sec" style="text-align:center;text-decoration:none" href="${t.pdf_url}" target="_blank">📄 เปิดใบแจ้งซ่อม PDF</a></div>`);
   if (isAdmin && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0) sections.push('<div class="center" style="margin:6px 0 18px"><a href="javascript:void 0" id="cxl" class="small" style="color:var(--bad)">ยกเลิกใบแจ้งซ่อมนี้</a></div>');
   $('#d').innerHTML = sections.join('') + ticketDetailHtml(t, true);
+  loadPhotos();
 
+  const stale = () => { STAFF = null; refresh('t' + no, 'staff', 'mine'); CACHE.drop('ov'); };
   const on = (id, fn) => { const el = $('#' + id); if (el) el.onclick = fn; };
-  on('assign', async () => { const uid = $('#tech').value; if (!uid) return toast('เลือกช่าง'); await run(() => api('assign', { no, uid })); toast('มอบหมายแล้ว'); STAFF = null; pageJob(no); });
+  on('assign', async () => { const uid = $('#tech').value; if (!uid) return toast('เลือกช่าง'); await run(() => api('assign', { no, uid })); toast('มอบหมายแล้ว'); stale(); pageJob(no); });
   app.querySelectorAll('select[id]').forEach(sl => { const o = $('#' + sl.id + '_o'); if (o) sl.onchange = () => o.classList.toggle('hidden', sl.value !== '__other'); });
   const pick = id => { const v = $('#' + id).value; return v === '__other' ? $('#' + id + '_o').value.trim() : v; };
-  on('pause', async () => { const reason = pick('pr'); if (!reason) return toast('กรุณาเลือกเหตุผล'); await run(() => api('pause', { no, reason })); toast('พักงานแล้ว'); STAFF = null; pageJob(no); });
+  on('pause', async () => { const reason = pick('pr'); if (!reason) return toast('กรุณาเลือกเหตุผล'); await run(() => api('pause', { no, reason })); toast('พักงานแล้ว'); stale(); pageJob(no); });
   on('editPlan', () => { const b = document.querySelector('#planCard .foldb'); if (b) b.classList.toggle('hidden'); });
-  on('resume', async () => { const r = await run(() => api('resume', { no })); toast('ทำงานต่อแล้ว · กำหนดเสร็จ ' + r.ticket.due); STAFF = null; pageJob(no); });
-  on('take', async () => { await run(() => api('take', { no })); toast('รับงานแล้ว'); STAFF = null; pageJob(no); });
+  on('resume', async () => { const r = await run(() => api('resume', { no })); toast('ทำงานต่อแล้ว · กำหนดเสร็จ ' + r.ticket.due); stale(); pageJob(no); });
+  on('take', async () => { await run(() => api('take', { no })); toast('รับงานแล้ว'); stale(); pageJob(no); });
   const planSel = $('#plan'); if (planSel) planSel.onchange = () => $('#daysBox').classList.toggle('hidden', !['wait', 'external'].includes(planSel.value));
   on('savePlan', async () => {
     const d = { no, appoint_date: $('#appoint').value, appoint_time: $('#appointT').value, plan: $('#plan').value, plan_days: $('#days').value, plan_note: $('#pnote').value.trim() };
     if (!d.appoint_date || !d.appoint_time || !d.plan) return toast('กรุณาระบุวันนัด เวลา และผลประเมิน');
-    await run(() => api('plan', d)); toast('บันทึกและแจ้งผู้แจ้งแล้ว'); pageJob(no);
+    await run(() => api('plan', d)); toast('บันทึกและแจ้งผู้แจ้งแล้ว'); stale(); pageJob(no);
   });
   let cat = t.category || '';
   app.querySelectorAll('#cat .chip').forEach(c => c.onclick = () => { cat = c.dataset.c; app.querySelectorAll('#cat .chip').forEach(x => x.classList.toggle('on', x === c)); });
@@ -618,13 +717,13 @@ async function pageJob(no) {
     if (!me.hasSignature) { toast('กรุณาบันทึกลายเซ็นช่างก่อน'); return go('mysig'); }
     const d = { no, onsite, cause: pick('cause'), solution: pick('sol'), advice: $('#adv').value.trim(), asset_code: $('#asset').value.trim(), category: cat, after_photos: aph ? aph.list : [] };
     if (!d.cause || !d.solution || !d.category) return toast('กรุณากรอกสาเหตุ แนวทางแก้ไข และประเภท');
-    await run(() => api('complete', d)); STAFF = null;
+    await run(() => api('complete', d)); stale();
     if (onsite) go('accept', no, { onsite: 1 }); else { toast('ส่งคำขอตรวจงานให้ผู้แจ้งแล้ว'); pageJob(no); }
   };
   on('doneOnsite', () => complete(true));
   on('doneLine', () => complete(false));
   on('resend', async () => { await run(() => api('requestAccept', { no })); toast('ส่งแล้ว'); });
-  on('cxl', async () => { const reason = prompt('เหตุผลการยกเลิก'); if (!reason) return; await run(() => api('cancel', { no, reason })); toast('ยกเลิกแล้ว'); STAFF = null; pageJob(no); });
+  on('cxl', async () => { const reason = prompt('เหตุผลการยกเลิก'); if (!reason) return; await run(() => api('cancel', { no, reason })); toast('ยกเลิกแล้ว'); stale(); pageJob(no); });
 }
 
 
@@ -635,7 +734,9 @@ async function pageDash() {
   if (INIT.me.role === 'user') return pageRegister();
   const month = new URL(location.href).searchParams.get('m') || '';
   app.innerHTML = topBar('ภาพรวมงานแจ้งซ่อม') + '<div class="dwrap" id="d"><div class="empty">กำลังโหลด...</div></div>';
-  const o = await run(() => api('overview', { month }));
+  await swr('ov' + month, () => api('overview', { month }), o => drawDash(o));
+}
+function drawDash(o) {
   const s = o.stats, p = o.prev;
   const delta = (a, b, better, unit) => {
     if (a === null || b === null || a === undefined || b === undefined) return '<span class="nt">ไม่มีข้อมูลเทียบ</span>';
@@ -653,7 +754,7 @@ async function pageDash() {
   const maxI = Math.max(1, ...o.topItems.map(b => b.n));
   $('#d').innerHTML = `
     <div class="dhead"><select id="mon">${o.months.map(m => `<option value="${m.ym}"${m.ym === o.ym ? ' selected' : ''}>${esc(m.label)}</option>`).join('')}</select>
-      <button class="btn sec sm" onclick="pageDash()">รีเฟรช</button><button class="btn blue sm" onclick="go('staff')">จัดการงานทั้งหมด →</button></div>
+      <button class="btn sec sm" onclick="CACHE.drop('ov');pageDash()">รีเฟรช</button><button class="btn blue sm" onclick="go('staff')">จัดการงานทั้งหมด →</button></div>
     <div class="kpis">
       <div class="kpi"><div class="lb">งานแจ้งซ่อมเดือนนี้</div><div class="v">${s.total}</div><div class="dl">${delta(s.total, p.total, 0, ' งาน')}</div></div>
       <div class="kpi"><div class="lb">ปิดแล้ว / คงค้าง</div><div class="v">${s.closed} <span style="font-size:18px;color:var(--muted)">/ ${s.open}</span></div><div class="dl">${delta(s.open, p.open, -1, ' งานค้าง')}</div></div>
@@ -688,7 +789,7 @@ async function pageDash() {
   $('#mon').onchange = e => go('dash', null, { m: e.target.value });
   const g = $('#genRep'); if (g) g.onclick = async () => {
     const r = await run(() => api('generateReport', { month: o.ym }));
-    toast('สร้างรายงานแล้ว'); window.open(r.docUrl, '_blank'); pageDash();
+    toast('สร้างรายงานแล้ว'); window.open(r.docUrl, '_blank'); CACHE.drop('ov'); pageDash();
   };
 }
 function dailyChart(daily, lastDay) {
@@ -710,21 +811,33 @@ function dailyChart(daily, lastDay) {
 
 /* ================= boot ================= */
 async function boot() {
-  busy(true);
-  try {
-    if (MOCK) { await new Promise(r => { const s = document.createElement('script'); s.src = 'mock.js'; s.onload = r; document.head.appendChild(s); }); }
-    else {
-      await liff.init({ liffId: CFG.LIFF_ID });
-      if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
-      ID_TOKEN = liff.getIDToken();
-    }
-    INIT = await api('init');
-    busy(false);
-    route();
-  } catch (e) {
-    busy(false);
-    app.innerHTML = `<div class="wrap"><div class="card center"><h2>เปิดระบบไม่สำเร็จ</h2><p class="muted small">${esc(e.message || e)}</p><button class="btn" onclick="location.reload()">ลองใหม่</button></div></div>`;
+  const fail = e => { busy(false); app.innerHTML = `<div class="wrap"><div class="card center"><h2>เปิดระบบไม่สำเร็จ</h2><p class="muted small">${esc(e.message || e)}</p><button class="btn" onclick="location.reload()">ลองใหม่</button></div></div>`; };
+  // ปลุกเซิร์ฟเวอร์ให้ตื่นไปพร้อมกับตอน LINE กำลังล็อกอิน (Apps Script ครั้งแรกจะช้า)
+  if (!MOCK && CFG.GAS_URL) { try { fetch(CFG.GAS_URL, { method: 'GET', mode: 'no-cors' }); } catch (e) {} }
+  // เตรียม idToken เบื้องหลัง — หน้าจะวาดจากแคชได้เลยไม่ต้องรอ
+  READY = (async () => {
+    if (MOCK) { await new Promise(r => { const s = document.createElement('script'); s.src = 'mock.js'; s.onload = r; document.head.appendChild(s); }); return; }
+    await liff.init({ liffId: CFG.LIFF_ID });
+    if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); await new Promise(() => {}); }
+    ID_TOKEN = liff.getIDToken();
+  })();
+  const cachedInit = MOCK ? null : CACHE.get('init');
+  if (cachedInit) {                       // เปิดครั้งต่อไป: ขึ้นหน้าทันที
+    INIT = cachedInit; route();
+    try {
+      INIT = await refreshInit();
+      // คนละบัญชี/สิทธิ์เปลี่ยน → ล้างแคชแล้ววาดใหม่
+      if (JSON.stringify(INIT.me) !== JSON.stringify(cachedInit.me)) { CACHE.drop(); CACHE.set('init', INIT); route(); }
+    } catch (e) { /* ใช้ของเดิมไปก่อน */ }
+    return;
   }
+  busy(true);
+  try { INIT = await refreshInit(); busy(false); route(); } catch (e) { fail(e); }
+}
+async function refreshInit() {
+  const r = await api('init');
+  CACHE.set('init', r);
+  return r;
 }
 </script>
 <script>
