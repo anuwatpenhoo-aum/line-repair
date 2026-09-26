@@ -4,7 +4,7 @@
  * แก้ค่าที่เปลี่ยนบ่อย (ชื่อผู้ลงนาม, SLA, อีเมล ฯลฯ) ได้ในชีต Settings โดยไม่ต้องแก้โค้ด
  * ค่าที่เป็นความลับ (LINE Channel access token) เก็บใน Script Properties เท่านั้น
  */
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.6.0';
 /** Google Sheet ที่เป็นฐานข้อมูลของระบบ (ใช้เมื่อสคริปต์ไม่ได้ผูกกับชีตโดยตรง) */
 const SPREADSHEET_ID_DEFAULT = '14EPKByzciXuvzXCVr0gHLHrDjpWGwA_PZXRccW7-aRw';
 
@@ -14,6 +14,7 @@ const SH = {
   STAFF: 'Staff',
   USERS: 'ผู้แจ้ง',
   KB: 'คลังความรู้',
+  ROSTER: 'รายชื่อบุคลากร',
   SET: 'Settings',
   LISTS: 'Lists',
   RPT: '_ReportData',
@@ -136,6 +137,16 @@ const REQ_FIELDS = [
   ['rework_pause_days', 'วันพักงาน (งานแก้)'],
   ['rework_done_at', 'แก้ไขเสร็จเมื่อ'],
   ['rework_iso', 'ISO งานแก้'],
+  ['code', 'เลขใบงาน'],
+  ['reporter_check', 'ตรวจสิทธิ์ผู้แจ้ง (ตอนแจ้ง)'],
+  ['priority', 'ความเร่งด่วน (normal/urgent)'],
+  ['urgent_reason', 'เหตุผลงานด่วน'],
+  ['urgent_at', 'เริ่มนับงานด่วนเมื่อ'],
+  ['urgent_by', 'กำหนดงานด่วนโดย'],
+  ['urgent_due', 'ต้องมีช่างรับภายใน (งานด่วน)'],
+  ['urgent_iso', 'KPI รับงานด่วน'],
+  ['urgent_note', 'ประวัติปรับความเร่งด่วน'],
+  ['urgent_alerted', 'เตือนงานด่วนล่าสุด'],
   ['resched_at', 'ผู้แจ้งขอเลื่อนนัดเมื่อ'],
   ['resched_date', 'วันที่ผู้แจ้งเสนอ'],
   ['resched_time', 'เวลาที่ผู้แจ้งเสนอ'],
@@ -199,7 +210,26 @@ const USER_FIELDS = [
   ['room', 'ห้อง'],
   ['pdpa_at', 'ยินยอม PDPA เมื่อ'],
   ['registered_at', 'ลงทะเบียนเมื่อ'],
-  ['updated_at', 'แก้ไขล่าสุด']
+  ['updated_at', 'แก้ไขล่าสุด'],
+  // ตรวจสิทธิ์ผู้แจ้ง (v1.6) — เทียบชื่อ-นามสกุล + หน่วยงาน กับรายชื่อบุคลากร
+  ['verify', 'สถานะตรวจสิทธิ์ (verified/pending/approved/denied)'],
+  ['verify_reason', 'เหตุผลที่ยังไม่ผ่าน'],
+  ['roster_key', 'ผูกกับรายชื่อบุคลากร'],
+  ['roster_name', 'ชื่อในรายชื่อบุคลากร'],
+  ['roster_dept', 'หน่วยงานในรายชื่อบุคลากร'],
+  ['verify_by', 'ตรวจโดย'],
+  ['verify_at', 'ตรวจเมื่อ'],
+  ['verify_note', 'หมายเหตุการตรวจ']
+];
+
+/** รายชื่อบุคลากรที่มีสิทธิ์แจ้งซ่อม (นำเข้าจากไฟล์ .xls) — ชื่อ + หน่วยงานเท่านั้น */
+const ROSTER_FIELDS = [
+  ['key', 'รหัสชื่อ (ใช้เทียบ)'],
+  ['name', 'ชื่อ-นามสกุล'],
+  ['dept', 'หน่วยงาน/ภาควิชา'],
+  ['bound_uid', 'ผูกกับ LINE userId'],
+  ['bound_at', 'ผูกเมื่อ'],
+  ['imported_at', 'นำเข้าเมื่อ']
 ];
 
 /** ค่าเริ่มต้นของชีต Settings: [key, value, คำอธิบาย] */
@@ -209,7 +239,10 @@ const DEFAULT_SETTINGS = [
   ['DOC_CODE', 'FM-PPM-2-01', 'รหัสเอกสารใบแจ้งซ่อม (ISO)'],
   ['DOC_REV', 'Revision 04-01/10/26', 'Revision ของใบแจ้งซ่อมฉบับอิเล็กทรอนิกส์ — ให้ตรงกับทะเบียนควบคุมเอกสาร'],
   ['REPORT_DOC_CODE', '', 'รหัสเอกสารรายงานรายเดือน (ถ้ามี)'],
-  ['SLA_DAYS', '3', 'เกณฑ์ ISO: ต้องเสร็จภายในกี่วันนับจากวันแจ้ง'],
+  ['SLA_DAYS', '3', 'เกณฑ์ ISO: ต้องเสร็จภายในกี่วันทำการ (จ–ศ) นับจากวันแจ้ง — แจ้งวันหยุด/หลังเลิกงาน เริ่มนับวันทำการถัดไป'],
+  ['WORK_START', '08:00', 'เวลาเริ่มงาน (ใช้นับเวลารับงานด่วน)'],
+  ['WORK_END', '17:00', 'เวลาเลิกงาน (แจ้งหลังเวลานี้ เริ่มนับวันทำการถัดไป)'],
+  ['HOLIDAYS', '', 'วันหยุดนักขัตฤกษ์/วันหยุดมหาวิทยาลัย ไม่นับเป็นวันทำการ — ใส่วันที่คั่นด้วยจุลภาค เช่น 2026-10-13, 23/10/2569'],
   ['KPI_ISO_TARGET', '90', 'เป้าหมาย % งานที่เสร็จทันเกณฑ์ (แสดงในรายงาน)'],
   ['ACCEPT_REMIND_DAYS', '2', 'เตือนผู้แจ้งให้ตรวจรับเมื่อค้างกี่วัน'],
   ['NEXT_NO', '332', 'เลขรับแจ้งถัดไป (ต่อจากระบบเดิม)'],
@@ -230,6 +263,14 @@ const DEFAULT_SETTINGS = [
   ['WEB_BASE_URL', 'https://anuwatpenhoo-aum.github.io/line-repair/', 'URL ของหน้าเว็บ (GitHub Pages) เช่น https://xxx.github.io/line-repair/'],
   ['RICHMENU_USER_ID', '', 'Rich menu สำหรับผู้ใช้ทั่วไป (สร้างอัตโนมัติ)'],
   ['RICHMENU_STAFF_ID', '', 'Rich menu เจ้าหน้าที่ชุดเดิม (เลิกใช้ ถูกแทนด้วย 2 ชุดด้านล่าง)'],
+  ['CODE_PREFIX', 'PH', 'ตัวหน้าเลขใบงาน (PH6909L001 = PH + ปี พ.ศ. 2 หลัก + เดือน + L + เลขวิ่ง 3 หลัก เริ่มใหม่ทุกเดือน)'],
+  ['CODE_LETTER', 'L', 'ตัวอักษรกลางเลขใบงาน'],
+  ['VERIFY_ENABLED', 'TRUE', 'ตรวจสิทธิ์ผู้แจ้งกับรายชื่อบุคลากร (TRUE/FALSE) — ยังไม่ยืนยัน = แจ้งได้แต่ติดป้ายรอตรวจ, แอดมินกด "ไม่มีสิทธิ์" = แจ้งไม่ได้'],
+  ['VERIFY_DENY_TEXT', 'บัญชีนี้ไม่มีสิทธิ์แจ้งซ่อม (สำหรับบุคลากรคณะเท่านั้น) หากเป็นบุคลากร กรุณาติดต่อเจ้าหน้าที่ไอทีของคณะ', 'ข้อความที่แสดงเมื่อผู้ไม่มีสิทธิ์พยายามแจ้งซ่อม'],
+  ['ROSTER_EXCLUDE', 'นิสิต|ผู้มาติดต่อ', 'หน่วยงานที่ไม่นำเข้าเป็นบุคลากรตอนนำเข้าไฟล์ (คั่นด้วย |)'],
+  ['ROSTER_INFO', '', 'สรุปการนำเข้ารายชื่อครั้งล่าสุด (ระบบเขียนให้)'],
+  ['URGENT_HOURS', 4, 'งานด่วน: ช่างต้องรับงานภายในกี่ชั่วโมง (นับเฉพาะเวลาทำการ) — กำหนดเสร็จใช้ SLA_DAYS วันทำการเหมือนงานปกติ'],
+  ['URGENT_ALERT_MIN', 30, 'งานด่วนที่ยังไม่มีคนรับเกินกี่นาที ให้เตือนแอดมินซ้ำ'],
   ['KB_CATEGORIES', 'คอมพิวเตอร์,ปริ้นเตอร์/สแกนเนอร์,อินเทอร์เน็ต/WiFi,โปรแกรม/Windows,อีเมล/บัญชีผู้ใช้,กล้อง CCTV,บัตร/สแกนนิ้ว,อื่นๆ', 'หมวดของคลังความรู้ (คั่นด้วยจุลภาค เรียงตามที่ต้องการให้แสดง)'],
   ['KB_NEXT_NO', 1, 'เลขบทความถัดไป (ระบบใช้)'],
   ['APPOINT_GAP_MIN', 60, 'นัดของช่างคนเดียวกันต้องห่างกันอย่างน้อยกี่นาที (กันนัดซ้อน) · 0 = ห้ามแค่เวลาเดียวกันเป๊ะ'],
@@ -325,6 +366,7 @@ function dropMemo_(shName) {
   if (shName === SH.STAFF) allStaff_._m = null;
   if (shName === SH.USERS) allUsers_._m = null;
   if (shName === SH.KB) allKb_._m = null;
+  if (shName === SH.ROSTER) allRoster_._m = null;
 }
 
 /** ===== Tickets ===== */
@@ -336,6 +378,27 @@ function allTickets_() {
     return t;
   }));
 }
+/** ===== เลขใบงาน PH6909L001 (ภายในยังใช้เลขลำดับ no เป็นกุญแจ) ===== */
+function codePrefix_(d) {
+  return str_(setting_('CODE_PREFIX', 'PH')) + String(beYear_(d)).slice(-2) + fmt_(d, 'MM') + str_(setting_('CODE_LETTER', 'L'));
+}
+/** เลขถัดไปของเดือนนั้น — เรียกภายใน lock เท่านั้น */
+function nextCode_(d, list) {
+  const pre = codePrefix_(d);
+  let max = 0;
+  (list || allTickets_()).forEach(t => { const c = str_(t.code); if (c.indexOf(pre) === 0) max = Math.max(max, Number(c.slice(pre.length)) || 0); });
+  const n = max + 1;
+  return pre + (n < 1000 ? ('00' + n).slice(-3) : String(n));
+}
+/** ข้อความเลขใบงานสำหรับแสดงผล */
+function tno_(t) { return str_(t && t.code) || ('#' + (t ? t.no : '')); }
+/** หาใบงานจากเลขใบงาน (PH6909L001) หรือเลขลำดับ (332) */
+function findTicket_(key) {
+  const k = str_(key).replace(/^#/, '').toUpperCase();
+  if (/^\d+$/.test(k)) return allTickets_().find(t => Number(t.no) === Number(k)) || null;
+  return allTickets_().find(t => str_(t.code).toUpperCase() === k) || null;
+}
+
 /** ค่าเวลาในชีต → "HH:mm" (รับได้ทั้ง Date และข้อความ) */
 function hhmm_(v) {
   if (v && typeof v === 'object' && typeof v.getTime === 'function') return fmt_(v, 'HH:mm');
@@ -347,8 +410,7 @@ function mins_(hm) { const m = String(hm || '').match(/^(\d{1,2}):(\d{2})/); ret
 /** 23 กันยายน 2569 เวลา 16:00 น. */
 function thaiWhen_(d, hm) { return d ? thaiDate_(d) + (hm ? ' เวลา ' + hm + ' น.' : '') : ''; }
 function getTicket_(no) {
-  no = Number(no);
-  const t = allTickets_().find(x => Number(x.no) === no);
+  const t = findTicket_(no);
   if (!t) throw new Error('ไม่พบใบแจ้งซ่อมเลขที่ ' + no);
   return t;
 }
@@ -447,6 +509,81 @@ function thaiDateTime_(d) { return d ? thaiShort_(d) + ' ' + fmt_(d, 'HH:mm') : 
 function dayStart_(d) { const s = fmt_(d, 'yyyy-MM-dd'); return new Date(s + 'T00:00:00+07:00'); }
 function daysBetween_(a, b) { return Math.round((dayStart_(b) - dayStart_(a)) / 86400000); }
 function addDays_(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+
+/** ===== วันทำการ / เวลาทำการ =====
+ *  วันทำการ = จันทร์–ศุกร์ ที่ไม่อยู่ในรายการวันหยุด (Settings: HOLIDAYS)
+ *  เวลาทำการ = WORK_START–WORK_END (ค่าเริ่มต้น 08:00–17:00) */
+function nextDay_(d) { return dayStart_(new Date(dayStart_(d).getTime() + 30 * 3600000)); }
+function holidays_() {
+  const src = settings_();
+  if (holidays_._m && holidays_._src === src) return holidays_._m;
+  holidays_._src = src;
+  const m = {};
+  const raw = setting_('HOLIDAYS', '');
+  (raw && typeof raw === 'object' && raw.getTime ? fmt_(raw, 'yyyy-MM-dd') : str_(raw)).split(/[\s,;]+/).filter(Boolean).forEach(x => {
+    let a = x.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/), y, mo, d;
+    if (a) { y = +a[1]; mo = +a[2]; d = +a[3]; }
+    else if ((a = x.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))) { d = +a[1]; mo = +a[2]; y = +a[3]; }
+    else return;
+    if (y > 2400) y -= 543;   // ปี พ.ศ.
+    m[y + '-' + ('0' + mo).slice(-2) + '-' + ('0' + d).slice(-2)] = 1;
+  });
+  return (holidays_._m = m);
+}
+function isWorkDay_(d) { return Number(fmt_(d, 'u')) <= 5 && !holidays_()[fmt_(d, 'yyyy-MM-dd')]; }
+function workHours_() {
+  const s = mins_(str_(setting_('WORK_START', '08:00'))), e = mins_(str_(setting_('WORK_END', '17:00')));
+  return s !== null && e !== null && e > s ? [s, e] : [480, 1020];
+}
+/** วันถัดไปที่เป็นวันทำการ (ถ้าวันนี้เป็นวันทำการ คืนวันนี้) — เที่ยงคืนเวลาไทย */
+function workDayOnOrAfter_(d) { let x = dayStart_(d); for (let i = 0; i < 60 && !isWorkDay_(x); i++) x = nextDay_(x); return x; }
+/** วันเริ่มนับ SLA: แจ้งในวันทำการก่อนเลิกงาน = วันนั้น, หลังเลิกงาน/วันหยุด = วันทำการถัดไป */
+function workStartDay_(d) {
+  const ds = dayStart_(d), min = (new Date(d) - ds) / 60000;
+  return isWorkDay_(ds) && min < workHours_()[1] ? ds : workDayOnOrAfter_(nextDay_(ds));
+}
+/** บวก n วันทำการ */
+function addWorkDays_(d, n) {
+  let x = dayStart_(d);
+  for (let k = 0, i = 0; k < n && i < 400; i++) { x = nextDay_(x); if (isWorkDay_(x)) k++; }
+  return x;
+}
+/** จำนวนวันทำการหลังวัน a จนถึงวัน b (a วันจันทร์ b วันพฤหัส = 3) */
+function workDaysBetween_(a, b) {
+  let x = dayStart_(a), n = 0; const end = dayStart_(b);
+  for (let i = 0; x < end && i < 800; i++) { x = nextDay_(x); if (isWorkDay_(x)) n++; }
+  return n;
+}
+/** กำหนดเสร็จ = วันเริ่มนับ + SLA_DAYS วันทำการ (+ วันทำการที่พักงาน) */
+function slaDue_(from, pauseDays) { return addWorkDays_(workStartDay_(from), Number(setting_('SLA_DAYS', 3)) + Number(pauseDays || 0)); }
+/** บวกนาทีทำการ (นับเฉพาะเวลาทำการของวันทำการ) */
+function addWorkMinutes_(d, m) {
+  const [ws, we] = workHours_();
+  let day = dayStart_(d), cur = (new Date(d) - day) / 60000;
+  for (let i = 0; i < 400; i++) {
+    if (!isWorkDay_(day) || cur >= we) { day = workDayOnOrAfter_(nextDay_(day)); cur = ws; continue; }
+    if (cur < ws) cur = ws;
+    if (m <= we - cur) return new Date(day.getTime() + (cur + m) * 60000);
+    m -= we - cur; cur = we;
+  }
+  return new Date(new Date(d).getTime() + m * 60000);
+}
+/** นาทีทำการระหว่าง a → b (b ก่อน a = ติดลบ) */
+function workMinutesBetween_(a, b) {
+  a = new Date(a); b = new Date(b);
+  if (b < a) return -workMinutesBetween_(b, a);
+  const [ws, we] = workHours_();
+  let day = dayStart_(a), n = 0;
+  for (let i = 0; day <= b && i < 400; i++) {
+    if (isWorkDay_(day)) {
+      const s = Math.max(a.getTime(), day.getTime() + ws * 60000), e = Math.min(b.getTime(), day.getTime() + we * 60000);
+      if (e > s) n += (e - s) / 60000;
+    }
+    day = nextDay_(day);
+  }
+  return Math.round(n);
+}
+
 function parseDateInput_(s) { return s ? new Date(String(s).slice(0, 10) + 'T00:00:00+07:00') : ''; }
 
 /** ===== อื่นๆ ===== */
@@ -469,7 +606,8 @@ function isoResult_(startAt, doneAt, pauseDays) {
   if (!startAt || !doneAt) return '';
   return netDays_(startAt, doneAt, pauseDays) <= Number(setting_('SLA_DAYS', 3)) ? 'ทัน' : 'ไม่ทัน';
 }
-function netDays_(startAt, doneAt, pauseDays) { return Math.max(0, daysBetween_(startAt, doneAt) - Number(pauseDays || 0)); }
+/** วันทำการที่ใช้จริง: นับจากวันเริ่มนับ (แจ้งวันหยุด/หลังเลิกงาน = วันทำการถัดไป) หักวันทำการที่พักงาน */
+function netDays_(startAt, doneAt, pauseDays) { return Math.max(0, workDaysBetween_(workStartDay_(startAt), doneAt) - Number(pauseDays || 0)); }
 function isRework_(t) { return Number(t.reject_count || 0) > 0 && !!t.rework_at; }
 /** กำหนดเสร็จของรอบปัจจุบัน (งานใหม่ หรือ งานแก้) */
 function curDue_(t) { return isRework_(t) && t.rework_due ? t.rework_due : t.due_date; }
@@ -700,6 +838,7 @@ function pushAdmins_(messages) { activeStaff_('admin').forEach(s => push_(s.uid,
 
 function notifyNewTicket_(t) {
   const mode = setting_('NOTIFY_NEW', 'admins');
+  if (isUrgent_(t)) { notifyUrgent_(t); return; }
   const msg = ticketFlex_(t, 'งานแจ้งซ่อมใหม่', '#E8590C', [{ label: 'เปิดดู / มอบหมายงาน', uri: liffUrl_('staff', t.no) }]);
   if (mode === 'group' && setting_('NOTIFY_GROUP_ID', '')) push_(setting_('NOTIFY_GROUP_ID'), msg);
   else if (mode !== 'none') pushAdmins_(msg);
@@ -741,12 +880,14 @@ function ticketFlex_(t, title, color, buttons, extraRows) {
     ]
   });
   const rows = [
-    row('เลขที่', '#' + t.no),
+    row('เลขที่', tno_(t)),
     row('ผู้แจ้ง', t.reporter_name + (t.department ? ' (' + t.department + ')' : '')),
     row('สถานที่', [t.building, t.floor ? 'ชั้น ' + t.floor : '', t.room ? 'ห้อง ' + t.room : ''].filter(Boolean).join(' ')),
     row('รายการ', clip_(t.items_text || t.detail, 120)),
     row('สถานะ', t.status)
   ].concat((extraRows || []).map(r => row(r[0], r[1])));
+  if (isUrgent_(t) && !t.done_at && OPEN_STATUSES.indexOf(t.status) >= 0 && !(extraRows || []).some(r => /ต้องมีช่างรับภายใน|ต้องรับภายใน/.test(r[0])))
+    rows.splice(1, 0, row('งานด่วน', urgentWaiting_(t) ? '🚨 ต้องมีช่างรับภายใน ' + whenFull_(t.urgent_due) : '🚨 งานด่วน · เสร็จภายใน ' + thaiShort_(curDue_(t))));
   const bubble = {
     type: 'bubble',
     header: { type: 'box', layout: 'vertical', backgroundColor: color || '#1C7ED6', paddingAll: '14px', contents: [
@@ -760,7 +901,7 @@ function ticketFlex_(t, title, color, buttons, extraRows) {
       action: b.uri ? { type: 'uri', label: b.label, uri: b.uri } : { type: 'postback', label: b.label, data: b.data, displayText: b.displayText || b.label }
     }))};
   }
-  return { type: 'flex', altText: title + ' #' + t.no, contents: bubble };
+  return { type: 'flex', altText: title + ' ' + tno_(t), contents: bubble };
 }
 
 function text_(s) { return { type: 'text', text: s }; }
@@ -792,7 +933,7 @@ function doPost(e) {
     return json_(Object.assign({ ok: true }, handleApi_(body)));
   } catch (err) {
     const msg = String((err && err.message) || err);
-    if (msg !== 'SESSION_EXPIRED' && !/^(กรุณา|ไม่|เฉพาะ|รหัส|งาน|ช่าง|อาคาร|ใบแจ้ง|เลือก|พิมพ์|ขอเลื่อน)/.test(msg)) logError_(err, 'api ' + body.action);
+    if (msg !== 'SESSION_EXPIRED' && !/^(กรุณา|ไม่|เฉพาะ|รหัส|งาน|ช่าง|อาคาร|ใบแจ้ง|เลือก|พิมพ์|ขอเลื่อน|บัญชี|เลข)/.test(msg)) logError_(err, 'api ' + body.action);
     return json_({ ok: false, error: msg });
   }
 }
@@ -823,6 +964,11 @@ function handleApi_(req) {
     case 'kbPhoto': return apiKbPhoto_(me, d);
     case 'kbSave': return apiKbSave_(me, d);
     case 'kbHide': return apiKbHide_(me, d);
+    // ตรวจสิทธิ์ผู้แจ้ง (แอดมิน)
+    case 'verifyList': return apiVerifyList_(me, d);
+    case 'verifyDecide': return apiVerifyDecide_(me, d);
+    case 'verifyReset': return apiVerifyReset_(me, d);
+    case 'rosterImport': return apiRosterImport_(me, d);
     // เจ้าหน้าที่
     case 'staffTickets': return apiStaffTickets_(me);
     case 'search': return apiSearch_(me, d);
@@ -838,6 +984,7 @@ function handleApi_(req) {
     case 'complete': return apiComplete_(me, d);
     case 'requestAccept': return apiRequestAccept_(me, d.no);
     case 'cancel': return apiCancel_(me, d);
+    case 'priority': return apiPriority_(me, d);
     case 'saveSignature': return apiSaveSignature_(me, d);
     case 'dashboard': return apiDashboard_(me, d);
     case 'overview': return apiOverview_(me, d);
@@ -856,7 +1003,9 @@ function canView_(me, t) { return !!me.staff || t.reporter_uid === me.uid; }
 /* ---------- ข้อมูลที่ส่งให้หน้าเว็บ ---------- */
 function toClient_(t, full, withTimeline) {
   const o = {
-    no: t.no, status: t.status, created: thaiDateTime_(t.created_at),
+    no: t.no, code: tno_(t), status: t.status, created: thaiDateTime_(t.created_at), reporter_check: str_(t.reporter_check),
+    urgent: isUrgent_(t), urgent_due: isUrgent_(t) ? whenFull_(t.urgent_due) : '', urgent_hm: isUrgent_(t) && t.urgent_due ? (fmt_(t.urgent_due, 'yyyy-MM-dd') === fmt_(new Date(), 'yyyy-MM-dd') ? '' : fmt_(t.urgent_due, 'd/M ')) + fmt_(t.urgent_due, 'HH:mm') : '',
+    urgent_left: urgentWaiting_(t) ? urgentLeftMin_(t) : null, urgent_iso: str_(t.urgent_iso), urgent_reason: str_(t.urgent_reason),
     reporter_name: t.reporter_name, department: t.department, phone: t.phone,
     building: t.building, floor: t.floor, room: t.room,
     items_text: t.items_text, detail: t.detail, category: t.category || t.category_auto,
@@ -881,7 +1030,8 @@ function toClient_(t, full, withTimeline) {
     // ส่งเฉพาะ id ของรูป หน้าเว็บจะทยอยโหลดทีหลัง (action 'photo') — หน้าจึงขึ้นทันที
     photos: idsOf_(t.photo_ids).slice(0, 4),
     after_photos: idsOf_(t.after_photo_ids).slice(0, 4),
-    pdf_url: t.pdf_id ? fileUrl_(t.pdf_id) : ''
+    pdf_url: t.pdf_id ? fileUrl_(t.pdf_id) : '',
+    urgent_note: str_(t.urgent_note), urgent_since: t.urgent_at ? whenFull_(t.urgent_at) : ''
   });
   if (full && withTimeline) o.timeline = readAll_(SH.LOG, LOG_FIELDS).filter(l => Number(l.no) === Number(t.no))
     .map(l => ({ ts: thaiDateTime_(l.ts), action: l.action, by: l.by_name, to: l.to_status }));
@@ -890,32 +1040,38 @@ function toClient_(t, full, withTimeline) {
 
 /* ---------- ผู้ใช้ทั่วไป ---------- */
 function profileOut_(u) {
-  return u ? { name: u.name, department: u.department, phone: u.phone, building: u.building, floor: u.floor, room: u.room, pdpa: !!u.pdpa_at } : null;
+  return u ? { name: u.name, department: u.department, phone: u.phone, building: u.building, floor: u.floor, room: u.room, pdpa: !!u.pdpa_at,
+    verify: str_(u.verify), verify_reason: str_(u.verify_reason), deny_text: u.verify === 'denied' ? str_(setting_('VERIFY_DENY_TEXT', '')) : '' } : null;
 }
 
 function apiInit_(me) {
   return {
     me: { uid: me.uid, name: me.name, role: me.role, hasSignature: !!(me.staff && me.staff.sig_id), profile: profileOut_(userByUid_(me.uid)) },
-    lists: { buildings: buildings_(), groups: groups_(), categories: categories_(), colors: lists_().colors, options: options_() },
+    lists: { buildings: buildings_(), groups: groups_(), categories: categories_(), colors: lists_().colors, options: options_(), depts: me.staff ? [] : rosterDepts_() },
     org: setting_('ORG_NAME', ''), client: setting_('CLIENT_NAME', ''),
     docCode: setting_('DOC_CODE', ''), docRev: setting_('DOC_REV', ''),
-    pdpa: setting_('PDPA_TEXT', ''), slaDays: Number(setting_('SLA_DAYS', 3)), appointGap: appointGap_()
+    pdpa: setting_('PDPA_TEXT', ''), slaDays: Number(setting_('SLA_DAYS', 3)), appointGap: appointGap_(), urgentHours: urgentHours_()
   };
 }
 
 function apiSubmit_(me, d) {
   const cache = CacheService.getScriptCache();
-  if (d.reqId) { const dup = cache.get('sub_' + d.reqId); if (dup) return { no: Number(dup), duplicate: true }; }
+  if (d.reqId) { const dup = cache.get('sub_' + d.reqId); if (dup) { const x = /^\d+$/.test(dup) ? { no: Number(dup) } : JSON.parse(dup); return Object.assign(x, { duplicate: true }); } }
 
   const itemIds = (d.item_ids || []).filter(id => { const x = itemById_(id); return x && x.active !== false; });
   const need = { reporter_name: 'ชื่อผู้แจ้ง', department: 'ภาควิชา/หน่วยงาน', phone: 'หมายเลขติดต่อกลับ', building: 'อาคาร' };
   Object.keys(need).forEach(k => { if (!str_(d[k])) throw new Error('กรุณากรอก ' + need[k]); });
   if (buildings_().indexOf(d.building) < 0) throw new Error('อาคารไม่ถูกต้อง');
-  if (!itemIds.length) throw new Error('กรุณาเลือกรายการที่ต้องการแจ้งซ่อมอย่างน้อย 1 รายการ');
+  if (!itemIds.length) throw new Error('กรุณาเลือกรายการที่ต้องการแจ้งซ่อม 1 รายการ');
+  if (itemIds.length > 1) throw new Error('เลือกรายการได้ใบละ 1 รายการ หากมีหลายปัญหาให้แจ้งแยกใบ');
+  const urgent = str_(d.priority) === 'urgent';
+  if (urgent && str_(d.urgent_reason).length < 5) throw new Error('กรุณาระบุเหตุผลที่เป็นงานด่วน');
   if (itemIds.some(id => itemById_(id).needDetail) && !str_(d.detail)) throw new Error('กรุณาระบุรายละเอียด/สาเหตุการแจ้งซ่อม');
   if (itemIds.some(id => itemById_(id).card) && !str_(d.card_name)) throw new Error('กรุณาระบุชื่อ-นามสกุลเจ้าของบัตร');
-  const profile = userByUid_(me.uid);
+  let profile = userByUid_(me.uid);
   if (!profile) throw new Error('กรุณาลงทะเบียนผู้แจ้งก่อนแจ้งซ่อม');
+  if (!me.staff && (!profile.verify || profile.verify === 'pending')) profile = refreshVerify_(profile);   // รายชื่ออาจเพิ่งนำเข้าใหม่
+  const check = reporterCheck_(me, profile);   // ผู้ที่แอดมินระบุว่าไม่มีสิทธิ์ จะหยุดที่นี่
   if (!d.pdpa && !profile.pdpa_at) throw new Error('กรุณายอมรับเงื่อนไขการเก็บข้อมูล');
   if (!d.signature) throw new Error('กรุณาลงลายมือชื่อ');
 
@@ -930,18 +1086,21 @@ function apiSubmit_(me, d) {
     items_text: itemIds.map(id => itemById_(id).name).join(', '),
     detail: clip_(d.detail, 1000), card_name: clip_(d.card_name, 100), card_no: clip_(d.card_no, 50),
     category_auto: autoCategory_(itemIds), category: autoCategory_(itemIds),
-    due_date: addDays_(dayStart_(now), Number(setting_('SLA_DAYS', 3))), reject_count: 0
+    due_date: slaDue_(now), reject_count: 0,
+    priority: urgent ? 'urgent' : 'normal', reporter_check: check
   };
+  if (urgent) Object.assign(t, urgentStart_(now, me.name || 'ผู้แจ้ง'), { urgent_reason: clip_(d.urgent_reason, 300) });
 
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    settings_._cache = null;
+    settings_._cache = null; allTickets_._m = null;
     t.no = Number(setting_('NEXT_NO', 1));
+    t.code = nextCode_(now);
     setSetting_('NEXT_NO', t.no + 1);
     t._row = appendObj_(SH.REQ, REQ_FIELDS, t);
   } finally { lock.releaseLock(); }
-  if (d.reqId) cache.put('sub_' + d.reqId, String(t.no), 3600);
+  if (d.reqId) cache.put('sub_' + d.reqId, JSON.stringify({ no: t.no, code: t.code }), 3600);
 
   const folder = ticketFolder_(t);
   const patch = { sig_reporter_id: saveDataUrl_(d.signature, folder, 'sig_reporter') };
@@ -950,7 +1109,7 @@ function apiSubmit_(me, d) {
   Object.assign(t, patch);
   log_(t.no, 'แจ้งซ่อม', '', STATUS.NEW, me, t.items_text);
   notifyNewTicket_(t);
-  return { no: t.no, due: thaiShort_(t.due_date) };
+  return { no: t.no, code: t.code, urgent: urgent, due: thaiDate_(t.due_date), take_by: urgent ? whenFull_(t.urgent_due) : '' };
 }
 
 function apiMyTickets_(me) {
@@ -1014,7 +1173,7 @@ function apiAccept_(me, d) {
     patch.status = STATUS.REJECTED;
     patch.reject_count = Number(t.reject_count || 0) + 1;
     patch.rework_at = now;
-    patch.rework_due = addDays_(dayStart_(now), Number(setting_('SLA_DAYS', 3)));
+    patch.rework_due = slaDue_(now);
     patch.rework_pause_days = 0;
     updateTicket_(t, patch, 'ตรวจงาน: ส่งกลับแก้ไข (ครั้งที่ ' + patch.reject_count + ')', me, via + ' | ' + patch.accept_reason);
     const msg = ticketFlex_(t, 'ผู้แจ้งส่งกลับแก้ไข', '#C92A2A', [{ label: 'เปิดงาน', uri: liffUrl_('staff', t.no) }],
@@ -1043,7 +1202,9 @@ function apiSaveProfile_(me, d) {
     appendObj_(SH.USERS, USER_FIELDS, Object.assign(patch, { pdpa_at: now, registered_at: now }));
     log_('', 'ลงทะเบียนผู้แจ้ง', '', '', { uid: me.uid, name: patch.name }, patch.department + ' | ยินยอม PDPA');
   }
-  return { profile: profileOut_(userByUid_(me.uid)) };
+  const u = userByUid_(me.uid);
+  if (!me.staff) refreshVerify_(u);
+  return { profile: profileOut_(u) };
 }
 
 /** พักงาน (รออะไหล่/บริษัทภายนอก) — หยุดนับเวลา KPI จนกว่าจะกด "ทำงานต่อ" */
@@ -1075,17 +1236,18 @@ function apiResume_(me, d) {
 
 /** กลับมาทำงานต่อ: บวกวันที่พักเข้าไปในกำหนดเสร็จของรอบปัจจุบัน */
 function resumeTicket_(t, me) {
-  const days = Math.max(0, daysBetween_(t.paused_at || new Date(), new Date()));
+  // นับเป็นวันทำการที่พัก แล้วเลื่อนกำหนดเสร็จออกไปเท่านั้นวันทำการ
+  const days = Math.max(0, workDaysBetween_(t.paused_at || new Date(), new Date()));
   const patch = { status: t.pause_from && WORKING_STATUSES.indexOf(t.pause_from) >= 0 ? t.pause_from : STATUS.ASSIGNED, paused_at: '', pause_from: '' };
   if (!t.plan_days && (t.plan === PLAN_LABEL.wait || t.plan === PLAN_LABEL.external)) patch.plan_days = days;
   if (isRework_(t)) {
     patch.rework_pause_days = Number(t.rework_pause_days || 0) + days;
-    if (t.rework_due) patch.rework_due = addDays_(t.rework_due, days);
+    if (t.rework_due) patch.rework_due = addWorkDays_(t.rework_due, days);
   } else {
     patch.pause_days = Number(t.pause_days || 0) + days;
-    if (t.due_date) patch.due_date = addDays_(t.due_date, days);
+    if (t.due_date) patch.due_date = addWorkDays_(t.due_date, days);
   }
-  updateTicket_(t, patch, 'ทำงานต่อ (พัก ' + days + ' วัน)', me, t.pause_reason + ' | กำหนดเสร็จใหม่ ' + thaiShort_(curDue_(Object.assign({}, t, patch))));
+  updateTicket_(t, patch, 'ทำงานต่อ (พัก ' + days + ' วันทำการ)', me, t.pause_reason + ' | กำหนดเสร็จใหม่ ' + thaiShort_(curDue_(Object.assign({}, t, patch))));
   return t;
 }
 
@@ -1102,7 +1264,7 @@ function replyPending_(replyToken, withLink) {
   const msgs = [];
   let head = '📋 สรุป ณ ' + thaiDateTime_(now);
   head += '\n• รอมอบหมาย ' + wait.length + ' ใบ';
-  if (late.length) head += '\n• เกินกำหนด ' + late.length + ' ใบ: ' + late.slice(0, 10).map(t => '#' + t.no + ' (' + (t.assigned_name || 'ยังไม่มอบหมาย') + ')').join(', ');
+  if (late.length) head += '\n• เกินกำหนด ' + late.length + ' ใบ: ' + late.slice(0, 10).map(t => tno_(t) + ' (' + (t.assigned_name || 'ยังไม่มอบหมาย') + ')').join(', ');
   if (withLink) head += '\nภาพรวมทั้งหมด: ' + liffUrl_('dash');
   msgs.push(text_(head));
   if (wait.length) {
@@ -1204,7 +1366,7 @@ function apiSearch_(me, d) {
   const q = clip_(d.q, 100).toLowerCase();
   if (q.length < 2) throw new Error('พิมพ์คำค้นอย่างน้อย 2 ตัวอักษร');
   const hit = t => {
-    const f = [t.no, t.asset_code, t.reporter_name, t.department, t.phone, t.building, t.room, t.items_text, t.detail, t.cause, t.solution, t.assigned_name];
+    const f = [t.no, t.code, t.asset_code, t.reporter_name, t.department, t.phone, t.building, t.room, t.items_text, t.detail, t.cause, t.solution, t.assigned_name];
     return f.some(v => String(v == null ? '' : v).toLowerCase().indexOf(q) >= 0);
   };
   const all = allTickets_().filter(hit).sort((a, b) => b.no - a.no);
@@ -1237,7 +1399,7 @@ function apiSchedule_(me, d) {
     const slot = out.find(x => x.iso === fmt_(ds, 'yyyy-MM-dd'));
     if (!slot) return;
     slot.jobs.push({
-      no: t.no, time: str_(t.appoint_time) || '--:--', status: t.status,
+      no: t.no, code: tno_(t), urgent: isUrgent_(t), time: str_(t.appoint_time) || '--:--', status: t.status,
       tech: t.assigned_name || 'ยังไม่มอบหมาย', tech_uid: t.assigned_uid || '',
       place: [t.building, t.room ? 'ห้อง ' + t.room : ''].filter(Boolean).join(' '),
       items: t.items_text, reporter: t.reporter_name, done: !!t.done_at,
@@ -1261,6 +1423,7 @@ function apiAssign_(me, d) {
   const reassign = !!t.assigned_uid && t.assigned_uid !== tech.uid;
   const patch = { assigned_uid: tech.uid, assigned_name: tech.name, assigned_at: new Date() };
   if (t.status === STATUS.NEW) patch.status = STATUS.ASSIGNED;
+  markUrgentTaken_(t, patch, patch.assigned_at);
   updateTicket_(t, patch, reassign ? 'เปลี่ยนผู้รับผิดชอบ' : 'มอบหมายงาน', me, 'ให้ ' + tech.name);
   if (tech.uid !== me.uid) push_(tech.uid, ticketFlex_(t, 'คุณได้รับมอบหมายงาน', '#1C7ED6', [{ label: 'เปิดงาน', uri: liffUrl_('staff', t.no) }], [['กำหนดเสร็จ', thaiShort_(t.due_date)]]));
   return { ticket: toClient_(t, false) };
@@ -1270,7 +1433,9 @@ function apiTake_(me, no) {
   requireStaff_(me);
   const t = getTicket_(no);
   if (t.status !== STATUS.NEW) throw new Error('งานนี้มีผู้รับผิดชอบแล้ว');
-  updateTicket_(t, { status: STATUS.ASSIGNED, assigned_uid: me.uid, assigned_name: me.name, assigned_at: new Date() }, 'รับงานเอง', me, '');
+  const now = new Date();
+  const patch = markUrgentTaken_(t, { status: STATUS.ASSIGNED, assigned_uid: me.uid, assigned_name: me.name, assigned_at: now }, now);
+  updateTicket_(t, patch, 'รับงานเอง', me, patch.urgent_iso ? 'รับงานด่วน: ' + patch.urgent_iso : '');
   return { ticket: toClient_(t, false) };
 }
 
@@ -1284,7 +1449,7 @@ function apiPlan_(me, d) {
   if (!/^\d{1,2}:\d{2}$/.test(str_(d.appoint_time))) throw new Error('กรุณาระบุเวลานัดเข้าทำ');
   d.appoint_time = hhmm_(d.appoint_time);
   const clash = appointClash_(t, parseDateInput_(d.appoint_date), d.appoint_time);
-  if (clash) throw new Error('ช่าง' + (t.assigned_name ? ' ' + t.assigned_name : '') + ' มีนัดงาน #' + clash.no + ' เวลา ' + clash.appoint_time +
+  if (clash) throw new Error('ช่าง' + (t.assigned_name ? ' ' + t.assigned_name : '') + ' มีนัดงาน ' + tno_(clash) + ' เวลา ' + clash.appoint_time +
     ' น. อยู่แล้ว — นัดของช่างคนเดียวกันต้องห่างกันอย่างน้อย ' + appointGap_() + ' นาที');
   const was = t.appoint_date ? thaiShort_(t.appoint_date) + ' ' + str_(t.appoint_time) : '';
   const moved = !!t.resched_at || (was && was !== thaiShort_(parseDateInput_(d.appoint_date)) + ' ' + str_(d.appoint_time));
@@ -1303,7 +1468,7 @@ function apiPlan_(me, d) {
   if (t.plan) extra.push(['ผลประเมิน', t.plan + (t.plan_days ? ' ภายใน ' + t.plan_days + ' วัน' : '')]);
   if (t.plan_note) extra.push(['หมายเหตุ', t.plan_note]);
   push_(t.reporter_uid, ticketFlex_(t, moved ? 'เลื่อนนัดหมายใหม่' : 'นัดหมายเข้าดำเนินการ', '#1C7ED6', [
-    { label: 'รับทราบ', data: 'act=ack&no=' + t.no + '&t=' + t.ack_token, displayText: 'รับทราบนัดหมาย #' + t.no },
+    { label: 'รับทราบ', data: 'act=ack&no=' + t.no + '&t=' + t.ack_token, displayText: 'รับทราบนัดหมาย ' + tno_(t) },
     { label: 'ดูรายละเอียด', uri: liffUrl_('ticket', t.no) }
   ], extra));
   return { ticket: toClient_(t, false) };
@@ -1312,7 +1477,8 @@ function apiPlan_(me, d) {
 function apiComplete_(me, d) {
   const t = getTicket_(d.no);
   if (t.status === STATUS.NEW && me.staff) {
-    updateTicket_(t, { status: STATUS.ASSIGNED, assigned_uid: me.uid, assigned_name: me.name, assigned_at: new Date() }, 'รับงานเอง', me, '');
+    const at = new Date();
+    updateTicket_(t, markUrgentTaken_(t, { status: STATUS.ASSIGNED, assigned_uid: me.uid, assigned_name: me.name, assigned_at: at }, at), 'รับงานเอง', me, '');
   }
   if (!canWork_(me, t)) throw new Error('ไม่มีสิทธิ์');
   if (t.status === STATUS.PAUSED) resumeTicket_(t, me);
@@ -1411,27 +1577,30 @@ function handleEvent_(ev) {
   if (ev.type === 'postback') {
     const p = {};
     String(ev.postback.data || '').split('&').forEach(kv => { const [k, v] = kv.split('='); p[k] = decodeURIComponent(v || ''); });
+    if (p.act === 'takeu') { takeUrgentByPostback_(ev, uid, p.no); return; }
     if (p.act === 'ack') {
       const t = getTicket_(p.no);
       if (t.reporter_uid !== uid || !t.ack_token || t.ack_token !== p.t) { reply_(ev.replyToken, text_('ลิงก์รับทราบนี้หมดอายุแล้ว')); return; }
       if (!t.ack_at) updateTicket_(t, { ack_at: new Date(), ack_by: t.reporter_name }, 'ผู้แจ้งรับทราบนัดหมาย', { uid: uid, name: t.reporter_name }, 'ผ่านปุ่มใน LINE');
-      reply_(ev.replyToken, text_('รับทราบนัดหมายใบแจ้งซ่อม #' + t.no + ' เรียบร้อย ✅\nนัดเข้าทำ: ' + thaiDate_(t.appoint_date) + ' เวลา ' + t.appoint_time + ' น.'));
+      reply_(ev.replyToken, text_('รับทราบนัดหมายใบแจ้งซ่อม ' + tno_(t) + ' เรียบร้อย ✅\nนัดเข้าทำ: ' + thaiDate_(t.appoint_date) + ' เวลา ' + t.appoint_time + ' น.'));
     }
     return;
   }
   if (ev.type !== 'message' || ev.message.type !== 'text') return;
   const txt = String(ev.message.text || '').trim();
 
-  const m = txt.match(/^(แจ้งซ่อม|ตรวจรับงาน|ตรวจงาน)\s*#(\d+)/);
+  const m = txt.match(/^(แจ้งซ่อม|ตรวจรับงาน|ตรวจงาน)\s*(?:#(\d+)|([A-Za-z]{1,4}\d{4}[A-Za-z]\d{3,}))/);
   if (m) {
-    let t; try { t = getTicket_(m[2]); } catch (e) { return; }
+    let t; try { t = getTicket_(m[2] || m[3]); } catch (e) { return; }
     if (t.reporter_uid !== uid) return;
     if (m[1] === 'แจ้งซ่อม') {
-      reply_(ev.replyToken, ticketFlex_(t, 'รับเรื่องแจ้งซ่อมแล้ว', '#E8590C', [{ label: 'ติดตามสถานะ', uri: liffUrl_('ticket', t.no) }], [['กำหนดเสร็จ', thaiDate_(t.due_date)]]));
+      reply_(ev.replyToken, isUrgent_(t)
+        ? ticketFlex_(t, 'รับเรื่องงานด่วนแล้ว', '#C92A2A', [{ label: 'ติดตามสถานะ', uri: liffUrl_('ticket', t.no) }], [['ต้องมีช่างรับภายใน', whenFull_(t.urgent_due)], ['กำหนดเสร็จ', thaiDate_(t.due_date)]])
+        : ticketFlex_(t, 'รับเรื่องแจ้งซ่อมแล้ว', '#E8590C', [{ label: 'ติดตามสถานะ', uri: liffUrl_('ticket', t.no) }], [['กำหนดเสร็จ', thaiDate_(t.due_date)]]));
     } else {
       reply_(ev.replyToken, text_(t.status === STATUS.CLOSED
-        ? 'ขอบคุณที่ตรวจงาน #' + t.no + ' 🙏 ใบแจ้งซ่อมปิดเรียบร้อยแล้ว'
-        : 'ส่งกลับแก้ไข #' + t.no + ' แล้ว ช่างจะดำเนินการแก้ไขภายใน ' + setting_('SLA_DAYS', 3) + ' วัน'));
+        ? 'ขอบคุณที่ตรวจงาน ' + tno_(t) + ' 🙏 ใบแจ้งซ่อมปิดเรียบร้อยแล้ว'
+        : 'ส่งกลับแก้ไข ' + tno_(t) + ' แล้ว ช่างจะดำเนินการแก้ไขภายใน ' + setting_('SLA_DAYS', 3) + ' วันทำการ'));
     }
     return;
   }
@@ -1439,7 +1608,7 @@ function handleEvent_(ev) {
     const mine = allTickets_().filter(t => t.reporter_uid === uid && OPEN_STATUSES.indexOf(t.status) >= 0).sort((a, b) => b.no - a.no).slice(0, 10);
     if (!mine.length) { reply_(ev.replyToken, text_('ไม่มีงานแจ้งซ่อมที่ค้างอยู่ค่ะ')); return; }
     reply_(ev.replyToken, { type: 'flex', altText: 'งานแจ้งซ่อมของคุณ', contents: { type: 'carousel',
-      contents: mine.map(t => ticketFlex_(t, 'ใบแจ้งซ่อม #' + t.no, '#1C7ED6', [{ label: 'ดูรายละเอียด', uri: liffUrl_('ticket', t.no) }]).contents) } });
+      contents: mine.map(t => ticketFlex_(t, 'ใบแจ้งซ่อม ' + tno_(t), isUrgent_(t) ? '#C92A2A' : '#1C7ED6', [{ label: 'ดูรายละเอียด', uri: liffUrl_('ticket', t.no) }]).contents) } });
     return;
   }
   // "งานค้าง" — ตอบรายการงานที่ยังไม่มีคนรับ (ใช้ได้ในกลุ่มที่ผูกไว้ หรือแชตส่วนตัวของเจ้าหน้าที่)
@@ -1486,7 +1655,7 @@ function generateTicketPdf_(t) {
   if (!tplId) throw new Error('ยังไม่มีเทมเพลตใบแจ้งซ่อม (TICKET_TEMPLATE_ID)');
   const folder = monthFolder_(t.created_at);
   const docCode = setting_('DOC_CODE', 'FM-PPM-2-01');
-  const copy = DriveApp.getFileById(tplId).makeCopy('_tmp_' + docCode + '_' + t.no, folder);
+  const copy = DriveApp.getFileById(tplId).makeCopy('_tmp_' + docCode + '_' + tno_(t).replace('#', ''), folder);
   try {
     const doc = DocumentApp.openById(copy.getId());
     const parts = [doc.getBody()];
@@ -1505,7 +1674,7 @@ function generateTicketPdf_(t) {
     Object.keys(imgs).forEach(k => parts.forEach(p => replaceWithImage_(p, k, imgs[k], 110, 34)));
     doc.saveAndClose();
 
-    const pdf = copy.getAs(MimeType.PDF).setName(docCode + '_' + t.no + '.pdf');
+    const pdf = copy.getAs(MimeType.PDF).setName(docCode + '_' + tno_(t).replace('#', '') + '.pdf');
     if (t.pdf_id) { try { DriveApp.getFileById(t.pdf_id).setTrashed(true); } catch (e) { /* ignore */ } }
     const file = folder.createFile(pdf);
     updateObj_(SH.REQ, REQ_FIELDS, t._row, { pdf_id: file.getId() });
@@ -1524,7 +1693,7 @@ function ticketPlaceholders_(t) {
   const items = idsOf_(t.item_ids);
   const c = new Date(t.created_at);
   const v = {
-    NO: t.no,
+    NO: tno_(t),
     DATE_D: fmt_(c, 'd'), DATE_M: TH_MONTHS[Number(fmt_(c, 'M')) - 1], DATE_Y: beYear_(c),
     DEPT: dots_(t.department, 30), PHONE: dots_(t.phone, 15), FLOOR: dots_(t.floor, 6), ROOM: dots_(t.room, 12),
     DETAIL: dots_(t.detail, 60), CARD_NAME: dots_(t.card_name, 30), CARD_NO: dots_(t.card_no, 25),
@@ -1547,7 +1716,7 @@ function ticketPlaceholders_(t) {
     SIGNER: t.signer_name || '', SIGN_DATE: thaiDateTime_(t.accepted_at), ACCEPT_VIA: t.accept_via || '',
     DOC_CODE: setting_('DOC_CODE', ''), DOC_REV: setting_('DOC_REV', ''),
     GEN: thaiDateTime_(new Date()),
-    REF: 'ใบแจ้งซ่อมอิเล็กทรอนิกส์ #' + t.no + ' | ผู้แจ้ง LINE: ' + (t.reporter_line_name || '-') + ' (' + String(t.reporter_uid || '').slice(-6) + ')'
+    REF: 'ใบแจ้งซ่อมอิเล็กทรอนิกส์ ' + tno_(t) + (t.urgent_at ? ' | งานด่วน' + (isUrgent_(t) ? (/^(ทัน|ไม่ทัน)$/.test(str_(t.urgent_iso)) ? ' (รับงานภายใน ' + urgentHours_() + ' ชม.: ' + t.urgent_iso + ')' : '') : ' (ปรับเป็นงานปกติ)') : '') + ' | ผู้แจ้ง LINE: ' + (t.reporter_line_name || '-') + ' (' + String(t.reporter_uid || '').slice(-6) + ')'
   };
   const tplB = DEFAULT_BUILDINGS;
   tplB.forEach((b, i) => { v['B' + (i + 1)] = ck_(t.building === b); });
@@ -1608,7 +1777,9 @@ function monthStats_(ym, uid) {
   const s = { ym: ym, total: list.length, byCat: {}, byStatus: {}, byBuilding: {}, byItem: {},
     closed: 0, open: 0, done: 0, isoOk: 0, isoPct: null, avgDays: null, avgResponseH: null,
     rejected: 0, avgRating: null, rated: 0,
-    rework: 0, reworkOk: 0, reworkPct: null, paused: 0, pauseDays: 0 };
+    rework: 0, reworkOk: 0, reworkPct: null, paused: 0, pauseDays: 0,
+    urgent: 0, urgentDone: 0, urgentOk: 0, urgentPct: null, urgentAvgH: null, urgentOpen: 0, urgentDown: 0, urgentAsked: 0 };
+  let sumUrgH = 0;
   categories_().forEach(c => { s.byCat[c] = 0; });
   let sumDays = 0, sumResp = 0, nResp = 0, sumRating = 0;
   list.forEach(t => {
@@ -1631,7 +1802,17 @@ function monthStats_(ym, uid) {
     if (firstAct) { sumResp += (new Date(firstAct) - new Date(t.created_at)) / 3600000; nResp++; }
     if (Number(t.reject_count) > 0) s.rejected++;
     if (Number(t.rating) > 0) { sumRating += Number(t.rating); s.rated++; }
+    // งานด่วน: KPI เสร็จภายใน URGENT_HOURS ชม. นับจากเวลาที่เป็นงานด่วน
+    if (str_(t.urgent_reason)) s.urgentAsked++;
+    if (t.urgent_at && !isUrgent_(t)) s.urgentDown++;
+    if (isUrgent_(t)) {
+      s.urgent++;
+      // KPI งานด่วน = ช่างรับงานภายใน URGENT_HOURS ชั่วโมงทำการ
+      if (/^(ทัน|ไม่ทัน)$/.test(str_(t.urgent_iso))) { s.urgentDone++; if (t.urgent_iso === 'ทัน') s.urgentOk++; sumUrgH += workMinutesBetween_(t.urgent_at, t.assigned_at || t.urgent_at) / 60; }
+      else if (t.status === STATUS.NEW) s.urgentOpen++;
+    }
   });
+  if (s.urgentDone) { s.urgentPct = round1_(s.urgentOk * 100 / s.urgentDone); s.urgentAvgH = round1_(sumUrgH / s.urgentDone); }
   if (s.done) { s.isoPct = round1_(s.isoOk * 100 / s.done); s.avgDays = round1_(sumDays / s.done); }
   if (s.rework) s.reworkPct = round1_(s.reworkOk * 100 / s.rework);
   if (nResp) s.avgResponseH = round1_(sumResp / nResp);
@@ -1652,7 +1833,8 @@ function techStats_(ym) {
       openNow: all.filter(t => t.assigned_uid === st.uid && OPEN_STATUSES.indexOf(t.status) >= 0).length,
       month: k.total, closed: k.closed, done: k.done, isoOk: k.isoOk, isoPct: k.isoPct, avgDays: k.avgDays,
       rework: k.rework, reworkOk: k.reworkOk, reworkPct: k.reworkPct, rejected: k.rejected,
-      rating: k.avgRating, rated: k.rated
+      rating: k.avgRating, rated: k.rated,
+      urgent: k.urgent, urgentDone: k.urgentDone, urgentOk: k.urgentOk, urgentPct: k.urgentPct
     };
   }).filter(x => x.month || x.openNow || (x.active && x.role === 'tech'));
   const unassigned = monthList.filter(t => !t.assigned_uid).length;
@@ -1679,6 +1861,7 @@ function monthlyJob() {
 /** ทุกวัน 08:00 — เตือนตรวจรับ + สรุปงานใกล้/เกินกำหนดให้หัวหน้างาน */
 function dailyJob() {
   const now = new Date();
+  if (!isWorkDay_(now)) return;   // เสาร์–อาทิตย์/วันหยุด ไม่ส่งสรุปและไม่เตือน
   const remindDays = Number(setting_('ACCEPT_REMIND_DAYS', 2));
   const all = allTickets_();
   all.filter(t => t.status === STATUS.WAIT_ACCEPT && t.done_at && daysBetween_(t.done_at, now) >= remindDays && !t.reminded_at)
@@ -1693,12 +1876,12 @@ function dailyJob() {
   const pausedLong = all.filter(t => t.status === STATUS.PAUSED && t.paused_at && daysBetween_(t.paused_at, now) >= 7);
   const waitLong = all.filter(t => t.status === STATUS.WAIT_ACCEPT && t.reminded_at && daysBetween_(t.reminded_at, now) >= 2);
   if (overdue.length || dueToday.length || waitLong.length || pausedLong.length) {
-    const fmtList = l => l.map(t => '#' + t.no + ' ' + (t.assigned_name || 'ยังไม่มอบหมาย')).join('\n');
+    const fmtList = l => l.map(t => tno_(t) + (isUrgent_(t) ? ' 🚨' : '') + ' ' + (t.assigned_name || 'ยังไม่มอบหมาย')).join('\n');
     let msg = '📋 สรุปงานประจำวัน ' + thaiShort_(now);
-    if (overdue.length) msg += '\n\n⛔ เกินกำหนด ' + setting_('SLA_DAYS', 3) + ' วัน (' + overdue.length + ')\n' + fmtList(overdue);
+    if (overdue.length) msg += '\n\n⛔ เกินกำหนด ' + setting_('SLA_DAYS', 3) + ' วันทำการ (' + overdue.length + ')\n' + fmtList(overdue);
     if (dueToday.length) msg += '\n\n⚠️ ครบกำหนดวันนี้ (' + dueToday.length + ')\n' + fmtList(dueToday);
     if (waitLong.length) msg += '\n\n✍️ ผู้แจ้งยังไม่ตรวจงาน (' + waitLong.length + ')\n' + fmtList(waitLong);
-    if (pausedLong.length) msg += '\n\n⏸ พักงานเกิน 7 วัน (' + pausedLong.length + ')\n' + pausedLong.map(t => '#' + t.no + ' ' + t.pause_reason).join('\n');
+    if (pausedLong.length) msg += '\n\n⏸ พักงานเกิน 7 วัน (' + pausedLong.length + ')\n' + pausedLong.map(t => tno_(t) + ' ' + t.pause_reason).join('\n');
     msg += '\n\nเปิดภาพรวม: ' + liffUrl_('dash');
     pushAdmins_(text_(msg));
   }
@@ -1793,7 +1976,7 @@ function generateMonthlyReport(ym, opts) {
     const topItems = Object.keys(itemCount).sort((a, b) => itemCount[b] - itemCount[a]).slice(0, 3).map(k => k + ' (' + itemCount[k] + ' งาน)');
     P('ปริมาณงาน' + diffTxt(n, prev.byCat[c] || 0) + ' เมื่อเทียบกับเดือน' + ymThai_(prevYm) + ' (' + (prev.byCat[c] || 0) + ' งาน)' +
       (topItems.length ? ' ส่วนใหญ่เป็นงาน ' + topItems.join(', ') : ''), { indent: 36 });
-    inCat.slice(0, 3).forEach(t => B('#' + t.no + ' ' + t.building + (t.room ? ' ห้อง ' + t.room : '') + ' — ' +
+    inCat.slice(0, 3).forEach(t => B(tno_(t) + ' ' + t.building + (t.room ? ' ห้อง ' + t.room : '') + ' — ' +
       clip_(t.detail || t.items_text, 80) + (t.solution ? ' → ' + clip_(t.solution, 80) : '')));
     P('ข้อเสนอแนะ:', { bold: true, after: 2 });
     B('[กรอกข้อเสนอแนะ]', true);
@@ -1804,7 +1987,7 @@ function generateMonthlyReport(ym, opts) {
   P('');
   P('สรุปในเดือน' + ymThai_(ym) + ' ปริมาณงานเมื่อเทียบกับเดือน' + ymThai_(prevYm) + ' ' + diffTxt(s.total, prev.total) +
     ' (จาก ' + prev.total + ' เป็น ' + s.total + ' ใบงาน)' + (topCat ? ' ประเภทงานที่มากที่สุดคือ ' + topCat + ' ' + s.byCat[topCat] + ' งาน' : '') +
-    (s.isoPct !== null ? ' ดำเนินการแล้วเสร็จตามเกณฑ์ ' + setting_('SLA_DAYS', 3) + ' วัน ร้อยละ ' + s.isoPct : '') +
+    (s.isoPct !== null ? ' ดำเนินการแล้วเสร็จตามเกณฑ์ ' + setting_('SLA_DAYS', 3) + ' วันทำการ ร้อยละ ' + s.isoPct : '') +
     (s.avgRating !== null ? ' ความพึงพอใจเฉลี่ย ' + s.avgRating + ' จาก 5' : ''), { indent: 36 });
   P('[กรอกบทสรุป/แนวทางปรับปรุงเพิ่มเติม]', { indent: 36, highlight: true });
 
@@ -1834,10 +2017,12 @@ function generateMonthlyReport(ym, opts) {
     ['ตัวชี้วัด', 'ผลเดือนนี้', 'เดือนก่อน', 'เป้าหมาย'],
     ['จำนวนใบแจ้งซ่อมทั้งหมด (ใบ)', String(s.total), String(prev.total), '-'],
     ['ปิดงานแล้ว / คงค้าง (ใบ)', s.closed + ' / ' + s.open, prev.closed + ' / ' + prev.open, '-'],
-    ['KPI งานใหม่: เสร็จภายใน ' + setting_('SLA_DAYS', 3) + ' วัน (%)', s.isoPct === null ? '-' : s.isoPct + '%', prev.isoPct === null ? '-' : prev.isoPct + '%', '≥ ' + target + '%'],
-    ['KPI งานแก้: แก้เสร็จภายใน ' + setting_('SLA_DAYS', 3) + ' วัน (%)', s.reworkPct === null ? '-' : s.reworkPct + '% (' + s.reworkOk + '/' + s.rework + ')', prev.reworkPct === null ? '-' : prev.reworkPct + '%', '≥ ' + target + '%'],
+    ['KPI งานใหม่: เสร็จภายใน ' + setting_('SLA_DAYS', 3) + ' วันทำการ (%)', s.isoPct === null ? '-' : s.isoPct + '%', prev.isoPct === null ? '-' : prev.isoPct + '%', '≥ ' + target + '%'],
+    ['KPI งานแก้: แก้เสร็จภายใน ' + setting_('SLA_DAYS', 3) + ' วันทำการ (%)', s.reworkPct === null ? '-' : s.reworkPct + '% (' + s.reworkOk + '/' + s.rework + ')', prev.reworkPct === null ? '-' : prev.reworkPct + '%', '≥ ' + target + '%'],
+    ['KPI งานด่วน: ช่างรับงานภายใน ' + urgentHours_() + ' ชม. ทำการ (%)' + (s.urgentAvgH === null ? '' : ' · เฉลี่ย ' + s.urgentAvgH + ' ชม.'), s.urgentPct === null ? (s.urgentOpen ? 'รอคนรับ ' + s.urgentOpen : '-') : s.urgentPct + '% (' + s.urgentOk + '/' + s.urgentDone + ')', prev.urgentPct === null ? '-' : prev.urgentPct + '%', '≥ ' + target + '%'],
+    ['งานด่วน: ผู้แจ้งขอด่วน / แอดมินปรับลดเป็นปกติ (ใบ)', s.urgentAsked + ' / ' + s.urgentDown, prev.urgentAsked + ' / ' + prev.urgentDown, '-'],
     ['เวลาตอบสนองเฉลี่ย (ชั่วโมง)', s.avgResponseH === null ? '-' : String(s.avgResponseH), prev.avgResponseH === null ? '-' : String(prev.avgResponseH), '-'],
-    ['ระยะเวลาดำเนินการเฉลี่ย (วัน)', s.avgDays === null ? '-' : String(s.avgDays), prev.avgDays === null ? '-' : String(prev.avgDays), '≤ ' + setting_('SLA_DAYS', 3)],
+    ['ระยะเวลาดำเนินการเฉลี่ย (วันทำการ)', s.avgDays === null ? '-' : String(s.avgDays), prev.avgDays === null ? '-' : String(prev.avgDays), '≤ ' + setting_('SLA_DAYS', 3)],
     ['งานที่ผู้แจ้งส่งกลับแก้ไข (ใบ)', String(s.rejected), String(prev.rejected), '0'],
     ['งานที่พักรออะไหล่/ภายนอก (ใบ / วันรวม)', s.paused + ' / ' + s.pauseDays, prev.paused + ' / ' + prev.pauseDays, '-'],
     ['ความพึงพอใจเฉลี่ย (เต็ม 5)', s.avgRating === null ? '-' : String(s.avgRating), prev.avgRating === null ? '-' : String(prev.avgRating), '≥ 4.0']
@@ -1850,22 +2035,37 @@ function generateMonthlyReport(ym, opts) {
   P('ตัวชี้วัดแยกตามช่างผู้ปฏิบัติงาน', { bold: true, size: 14, align: center, after: 2 });
   P('(ประจำเดือน' + ymThai_(ym) + ' · เป้าหมาย KPI ≥ ' + target + '%)', { align: center, after: 8 });
   const f = (ok, n, pctV) => n ? pctV + '% (' + ok + '/' + n + ')' : '-';
-  const tRows = [['ช่าง', 'งานเดือนนี้', 'ปิดแล้ว', 'KPI งานใหม่', 'KPI งานแก้', 'ถูกส่งกลับแก้ (ใบ)', 'เวลาเฉลี่ย (วัน)', 'ความพึงพอใจ', 'คงค้าง*']];
+  const tRows = [['ช่าง', 'งานเดือนนี้', 'ปิดแล้ว', 'KPI งานใหม่', 'KPI งานแก้', 'KPI รับงานด่วน', 'ถูกส่งกลับแก้ (ใบ)', 'เวลาเฉลี่ย (วันทำการ)', 'ความพึงพอใจ', 'คงค้าง*']];
   ts.rows.forEach(x => tRows.push([
-    x.name + (x.active ? '' : ' (พ้นหน้าที่)'), String(x.month), String(x.closed), f(x.isoOk, x.done, x.isoPct), f(x.reworkOk, x.rework, x.reworkPct),
+    x.name + (x.active ? '' : ' (พ้นหน้าที่)'), String(x.month), String(x.closed), f(x.isoOk, x.done, x.isoPct), f(x.reworkOk, x.rework, x.reworkPct), f(x.urgentOk, x.urgentDone, x.urgentPct),
     String(x.rejected), x.avgDays === null ? '-' : String(x.avgDays), x.rating === null ? '-' : x.rating + ' (' + x.rated + ')', String(x.openNow)
   ]));
-  if (ts.unassigned) tRows.push(['ยังไม่มอบหมาย', String(ts.unassigned), '-', '-', '-', '-', '-', '-', '-']);
-  tRows.push(['รวมทั้งหน่วยงาน', String(s.total), String(s.closed), f(s.isoOk, s.done, s.isoPct), f(s.reworkOk, s.rework, s.reworkPct),
+  if (ts.unassigned) tRows.push(['ยังไม่มอบหมาย', String(ts.unassigned), '-', '-', '-', '-', '-', '-', '-', '-']);
+  tRows.push(['รวมทั้งหน่วยงาน', String(s.total), String(s.closed), f(s.isoOk, s.done, s.isoPct), f(s.reworkOk, s.rework, s.reworkPct), f(s.urgentOk, s.urgentDone, s.urgentPct),
     String(s.rejected), s.avgDays === null ? '-' : String(s.avgDays), s.avgRating === null ? '-' : s.avgRating + ' (' + s.rated + ')',
     String(ts.rows.reduce((a2, x) => a2 + x.openNow, 0))]);
-  const tt = styleTable_(body.appendTable(tRows), [94, 40, 38, 60, 56, 46, 42, 50, 36], true);
+  const tt = styleTable_(body.appendTable(tRows), [80, 36, 34, 54, 50, 50, 42, 38, 46, 32], true);
   // ไฮไลต์ช่องที่ต่ำกว่าเป้า ให้เห็นทันทีตอน Management Review
   ts.rows.forEach((x, i) => {
-    [[3, x.isoPct], [4, x.reworkPct]].forEach(([c, v]) => { if (v !== null && v < target) tt.getCell(i + 1, c).setBackgroundColor('#FFE3E3'); });
-    if (x.rating !== null && x.rating < 4) tt.getCell(i + 1, 7).setBackgroundColor('#FFE3E3');
+    [[3, x.isoPct], [4, x.reworkPct], [5, x.urgentPct]].forEach(([c, v]) => { if (v !== null && v < target) tt.getCell(i + 1, c).setBackgroundColor('#FFE3E3'); });
+    if (x.rating !== null && x.rating < 4) tt.getCell(i + 1, 8).setBackgroundColor('#FFE3E3');
   });
-  P('* คงค้าง = งานที่ยังไม่ปิด ณ วันที่จัดทำรายงาน (ทุกเดือน) · KPI นับจากวันแจ้งถึงวันที่ช่างปิดงานครั้งแรก หักวันพักงานรออะไหล่/บริษัทภายนอก · ช่องสีแดง = ต่ำกว่าเป้าหมาย', { size: 9.5 });
+  P('* คงค้าง = งานที่ยังไม่ปิด ณ วันที่จัดทำรายงาน (ทุกเดือน) · KPI นับเป็นวันทำการ (จ–ศ ไม่รวมวันหยุด) จากวันแจ้งถึงวันที่ช่างปิดงานครั้งแรก หักวันพักงานรออะไหล่/บริษัทภายนอก · KPI รับงานด่วนนับชั่วโมงทำการ (08:00–17:00) จากเวลาที่เป็นงานด่วนถึงเวลาที่มีช่างรับงาน · ช่องสีแดง = ต่ำกว่าเป้าหมาย', { size: 9.5 });
+
+  // งานด่วน: ผู้แจ้งที่ขอด่วนในเดือนนี้ (ใช้ตรวจการแจ้งด่วนเกินจริง)
+  const asks = {};
+  list.filter(t => str_(t.urgent_reason)).forEach(t => {
+    const k = t.reporter_name + (t.department ? ' (' + t.department + ')' : '');
+    asks[k] = asks[k] || { n: 0, down: 0, ok: 0 };
+    asks[k].n++; if (!isUrgent_(t)) asks[k].down++; if (t.urgent_iso === 'ทัน') asks[k].ok++;
+  });
+  if (Object.keys(asks).length) {
+    P('');
+    P('ผู้แจ้งที่ขอเป็นงานด่วน', { bold: true, after: 4 });
+    const uRows = [['ผู้แจ้ง (หน่วยงาน)', 'ขอด่วน (ใบ)', 'ปรับลดเป็นปกติ', 'รับงานทัน ' + urgentHours_() + ' ชม.']];
+    Object.keys(asks).sort((a2, b2) => asks[b2].n - asks[a2].n).slice(0, 15).forEach(k => uRows.push([k, String(asks[k].n), String(asks[k].down), String(asks[k].ok)]));
+    styleTable_(body.appendTable(uRows), [250, 60, 70, 70]);
+  }
 
   P('');
   P('สรุปงานแจ้งซ่อมแยกตามอาคาร', { bold: true, size: 14, align: center, after: 2 });
@@ -1887,8 +2087,8 @@ function generateMonthlyReport(ym, opts) {
     P('');
     P('งานคงค้าง ณ วันที่จัดทำรายงาน', { bold: true, after: 4 });
     const pRows = [['เลขที่', 'วันที่แจ้ง', 'สถานที่', 'รายการ', 'สถานะ', 'ผู้รับผิดชอบ']];
-    pending.forEach(t => pRows.push([String(t.no), thaiShort_(t.created_at), t.building, clip_(t.detail || t.items_text, 50), t.status, t.assigned_name || '-']));
-    styleTable_(body.appendTable(pRows), [40, 60, 110, 130, 60, 60]);
+    pending.forEach(t => pRows.push([tno_(t), thaiShort_(t.created_at), t.building, clip_(t.detail || t.items_text, 50), t.status, t.assigned_name || '-']));
+    styleTable_(body.appendTable(pRows), [70, 55, 100, 115, 55, 55]);
   }
   P('');
   P('ภาคผนวก: รายละเอียดใบแจ้งซ่อมทั้งหมด ' + s.total + ' รายการ (ไฟล์ "ภาคผนวก ใบแจ้งซ่อม ' + ymThai_(ym) + '") และใบแจ้งซ่อมฉบับลงนาม (PDF) จัดเก็บในโฟลเดอร์ ใบแจ้งซ่อม/' + ym, { size: 11 });
@@ -1984,9 +2184,9 @@ function buildAppendix_(ym, list, folder) {
   const ss = SpreadsheetApp.create(name);
   const file = DriveApp.getFileById(ss.getId()); file.moveTo(folder);
   const sh = ss.getSheets()[0]; sh.setName('ใบแจ้งซ่อม');
-  const head = ['ลำดับ', 'วันที่แจ้ง', 'ลำดับรับแจ้ง', 'ชื่อผู้แจ้ง', 'สถานที่', 'ชั้น', 'คำรับแจ้ง', 'สถานะ', 'สาเหตุที่พบ', 'แนวทางการแก้ไข',
+  const head = ['ลำดับ', 'วันที่แจ้ง', 'เลขใบงาน', 'ชื่อผู้แจ้ง', 'สถานที่', 'ชั้น', 'คำรับแจ้ง', 'สถานะ', 'สาเหตุที่พบ', 'แนวทางการแก้ไข',
     'คำแนะนำแก้ไขเบื้องต้น', 'รหัสครุภัณฑ์', 'วันที่เสร็จ', 'ประเภทของปัญหา', 'ISO', 'ผู้ตรวจรับ/คะแนน', 'หมายเหตุ'];
-  const rows = list.map((t, i) => [i + 1, fmt_(t.created_at, 'd/M/yyyy'), t.no, t.reporter_name, t.building + (t.room ? ' ห้อง ' + t.room : ''), t.floor,
+  const rows = list.map((t, i) => [i + 1, fmt_(t.created_at, 'd/M/yyyy'), tno_(t) + (t.urgent_at && isUrgent_(t) ? ' (ด่วน' + (/^(ทัน|ไม่ทัน)$/.test(str_(t.urgent_iso)) ? ' รับงาน' + t.urgent_iso : '') + ')' : ''), t.reporter_name, t.building + (t.room ? ' ห้อง ' + t.room : ''), t.floor,
     t.detail ? t.items_text + ' — ' + t.detail : t.items_text, t.status, t.cause, t.solution, t.advice, t.asset_code,
     fmt_(t.done_at, 'd/M/yyyy'), catOf_(t), t.iso + (t.rework_iso ? ' / แก้: ' + t.rework_iso : ''), t.signer_name ? t.signer_name + ' (' + t.rating + '/5)' : '', t.remark]);
   sh.getRange(1, 1).setValue('ใบแจ้งซ่อม ประจำเดือน' + ymThai_(ym)).setFontWeight('bold').setFontSize(12);
@@ -2029,7 +2229,7 @@ function apiOverview_(me, d) {
   // ตามช่าง — ใช้ชุดคำนวณเดียวกับรายงานเดือน (techStats_) ตัวเลขบนจอกับในรายงานจึงตรงกันเสมอ
   const techs = techStats_(ym).rows.map(x => ({
     name: x.name + (x.active ? '' : ' (พ้นหน้าที่)'), role: x.role, openNow: x.openNow, month: x.month, closed: x.closed,
-    isoPct: x.isoPct, reworkPct: x.reworkPct, rework: x.rejected, rating: x.rating
+    isoPct: x.isoPct, reworkPct: x.reworkPct, rework: x.rejected, rating: x.rating, urgentPct: x.urgentPct, urgentDone: x.urgentDone
   }));
 
   // งานที่ต้องติดตาม (ทุกเดือน ณ ปัจจุบัน)
@@ -2041,6 +2241,7 @@ function apiOverview_(me, d) {
   });
   const working = open.filter(t => [STATUS.NEW, STATUS.ASSIGNED, STATUS.PLANNED, STATUS.REJECTED].indexOf(t.status) >= 0 && curDue_(t));
   const follow = {
+    urgent: open.filter(t => isUrgent_(t) && !t.done_at).sort((a, b) => new Date(a.urgent_due) - new Date(b.urgent_due)).map(row),
     overdue: working.filter(t => dayStart_(curDue_(t)).getTime() < today).map(row),
     dueToday: working.filter(t => dayStart_(curDue_(t)).getTime() === today).map(row),
     paused: open.filter(t => t.status === STATUS.PAUSED).map(t => Object.assign(row(t), { pausedDays: daysBetween_(t.paused_at, new Date()) })),
@@ -2055,7 +2256,7 @@ function apiOverview_(me, d) {
   months[nowYm] = 1;
 
   return {
-    ym: ym, label: ymThai_(ym), lastDay: ym === nowYm ? Number(fmt_(new Date(), 'd')) : 0, prevLabel: ymThai_(ymShift_(ym, -1)), slaDays: Number(setting_('SLA_DAYS', 3)),
+    ym: ym, label: ymThai_(ym), lastDay: ym === nowYm ? Number(fmt_(new Date(), 'd')) : 0, prevLabel: ymThai_(ymShift_(ym, -1)), slaDays: Number(setting_('SLA_DAYS', 3)), urgentHours: urgentHours_(),
     months: Object.keys(months).sort().reverse().slice(0, 24).map(k => ({ ym: k, label: ymThai_(k) })),
     stats: s, prev: prev, daily: daily, techs: techs, follow: follow,
     buildings: buildings_().map(b => ({ name: b, n: (s.byBuilding[b] || { total: 0 }).total })),
@@ -2063,7 +2264,8 @@ function apiOverview_(me, d) {
     topItems: Object.keys(s.byItem).sort((a, b) => s.byItem[b] - s.byItem[a]).slice(0, 5).map(k => ({ name: k, n: s.byItem[k] })),
     reports: listReports_(),
     isAdmin: me.role === 'admin',
-    kpiTarget: Number(setting_('KPI_ISO_TARGET', 90))
+    kpiTarget: Number(setting_('KPI_ISO_TARGET', 90)),
+    verify: verifyEnabled_() ? verifySummary_(ym) : null
   };
 }
 
@@ -2322,6 +2524,410 @@ function apiKbHide_(me, d) {
   return { ok: true };
 }
 
+// ===== Urgent.gs =====
+/** ===== งานด่วน (KPI: ช่างต้องรับงานภายใน URGENT_HOURS ชั่วโมงทำการ นับจากเวลาที่เป็นงานด่วน
+ *  ส่วนกำหนดเสร็จใช้ SLA_DAYS วันทำการเหมือนงานปกติ)
+ *  กันแจ้งด่วนเกินจริง: ผู้แจ้งต้องให้เหตุผล, แอดมินปรับขึ้น/ลดได้ (มีประวัติ + แจ้งผู้แจ้ง),
+ *  และรายงานนับจำนวนครั้งที่ผู้แจ้งแต่ละคนขอด่วน/ถูกปรับลด */
+
+function urgentHours_() { return Math.max(1, Number(setting_('URGENT_HOURS', 4)) || 4); }
+function isUrgent_(t) { return str_(t && t.priority) === 'urgent'; }
+function urgentStart_(now, byName) {
+  return { priority: 'urgent', urgent_at: now, urgent_by: str_(byName), urgent_due: addWorkMinutes_(now, urgentHours_() * 60), urgent_iso: '', urgent_alerted: '' };
+}
+/** ผล KPI งานด่วน ตอนมีช่างรับงาน (รับเอง / กดปุ่มใน LINE / แอดมินมอบหมาย) — ใส่ลง patch ครั้งเดียว */
+function markUrgentTaken_(t, patch, at) {
+  if (isUrgent_(t) && t.urgent_at && !str_(t.urgent_iso) && patch.assigned_uid) patch.urgent_iso = new Date(at) <= new Date(t.urgent_due) ? 'ทัน' : 'ไม่ทัน';
+  return patch;
+}
+/** รอคนรับงานด่วนอยู่หรือไม่ */
+function urgentWaiting_(t) { return isUrgent_(t) && t.status === STATUS.NEW && !!t.urgent_due; }
+/** 25 กันยายน 2569 เวลา 14:30 น. */
+function whenFull_(d) { return d ? thaiWhen_(d, fmt_(d, 'HH:mm')) : ''; }
+/** เวลาทำการที่เหลือให้รับงาน (นาที) ติดลบ = เกินเวลา */
+function urgentLeftMin_(t, now) { return t.urgent_due ? workMinutesBetween_(now || new Date(), t.urgent_due) : null; }
+function minTxt_(m) { m = Math.abs(m); return m >= 60 ? Math.floor(m / 60) + ' ชม.' + (m % 60 ? ' ' + (m % 60) + ' นาที' : '') : m + ' นาที'; }
+function addNote_(old, line) { return (str_(old) ? str_(old) + '\n' : '') + fmt_(new Date(), 'dd/MM/') + beYear_(new Date()) + ' ' + fmt_(new Date(), 'HH:mm') + ' ' + line; }
+
+/** จำนวนครั้งที่ผู้แจ้งคนนี้ขอด่วนในเดือนเดียวกัน (รวมใบนี้) */
+function urgentAsks_(t) {
+  const ym = fmt_(t.created_at, 'yyyy-MM');
+  return allTickets_().filter(x => x.reporter_uid === t.reporter_uid && str_(x.urgent_reason) && fmt_(x.created_at, 'yyyy-MM') === ym).length;
+}
+
+/** ส่งไปที่กลุ่ม (ถ้าผูกไว้) ไม่งั้นส่งถึงเจ้าหน้าที่ทุกคน — งานด่วนต้องมีคนเห็นเร็วที่สุด */
+function pushUrgent_(msg) {
+  const gid = str_(setting_('NOTIFY_GROUP_ID', ''));
+  if (setting_('NOTIFY_NEW', 'admins') === 'group' && gid) push_(gid, msg);
+  else activeStaff_().forEach(s => push_(s.uid, msg));
+}
+function urgentButtons_(t) {
+  const b = [];
+  if (t.status === STATUS.NEW) b.push({ label: 'รับงานด่วนนี้', data: 'act=takeu&no=' + t.no, displayText: 'รับงานด่วน ' + tno_(t) });
+  b.push({ label: 'เปิดใบงาน', uri: liffUrl_('job', t.no) });
+  return b;
+}
+
+function notifyUrgent_(t, title) {
+  const n = urgentAsks_(t);
+  const extra = [['เหตุผลที่ด่วน', t.urgent_reason || '-'], ['ต้องมีช่างรับภายใน', whenFull_(t.urgent_due)]];
+  if (n > 1) extra.push(['ผู้แจ้งขอด่วนเดือนนี้', 'ครั้งที่ ' + n]);
+  pushUrgent_(ticketFlex_(t, title || '🚨 งานด่วน · ต้องมีช่างรับภายใน ' + urgentHours_() + ' ชม.', '#C92A2A', urgentButtons_(t), extra));
+}
+
+/** แอดมินปรับความเร่งด่วน: urgent=true ยกเป็นงานด่วน (เริ่มนับ 4 ชม. ตอนนี้) / false ลดเป็นงานปกติ */
+function apiPriority_(me, d) {
+  requireAdmin_(me);
+  const t = getTicket_(d.no);
+  if (OPEN_STATUSES.indexOf(t.status) < 0 || (t.done_at && t.status === STATUS.WAIT_ACCEPT)) throw new Error('งานนี้ดำเนินการเสร็จแล้ว ปรับความเร่งด่วนไม่ได้');
+  const reason = clip_(d.reason, 300);
+  if (reason.length < 3) throw new Error('กรุณาระบุเหตุผลการปรับความเร่งด่วน');
+  const now = new Date();
+  if (d.urgent) {
+    if (isUrgent_(t)) throw new Error('งานนี้เป็นงานด่วนอยู่แล้ว');
+    const patch = Object.assign(urgentStart_(now, me.name), {
+      urgent_reason: str_(t.urgent_reason) || reason,
+      urgent_note: addNote_(t.urgent_note, 'ปรับเป็นงานด่วน โดย ' + me.name + ': ' + reason)
+    });
+    if (t.assigned_uid) patch.urgent_iso = 'ไม่นับ';   // มีช่างรับอยู่แล้ว ไม่วัด KPI การรับงาน
+    updateTicket_(t, patch, 'ปรับเป็นงานด่วน', me, reason + (t.assigned_uid ? '' : ' | ต้องมีช่างรับภายใน ' + whenFull_(patch.urgent_due)));
+    if (t.assigned_uid && t.assigned_uid !== me.uid) push_(t.assigned_uid, ticketFlex_(t, '🚨 งานของคุณถูกปรับเป็นงานด่วน', '#C92A2A', urgentButtons_(t), [['เหตุผล', reason]]));
+    else if (!t.assigned_uid) notifyUrgent_(t, '🚨 ปรับเป็นงานด่วน · ต้องมีช่างรับภายใน ' + urgentHours_() + ' ชม.');
+  } else {
+    if (!isUrgent_(t)) throw new Error('งานนี้เป็นงานปกติอยู่แล้ว');
+    const patch = { priority: 'normal', urgent_iso: '', urgent_note: addNote_(t.urgent_note, 'ปรับเป็นงานปกติ โดย ' + me.name + ': ' + reason) };
+    updateTicket_(t, patch, 'ปรับเป็นงานปกติ', me, reason);
+    // แจ้งผู้แจ้งให้ทราบ (โปร่งใส) — ถ้าผู้แจ้งเป็นคนขอด่วน
+    if (str_(t.urgent_reason) && t.reporter_uid) push_(t.reporter_uid, ticketFlex_(t, 'ปรับเป็นงานซ่อมปกติ', '#E67700', [{ label: 'ดูรายละเอียด', uri: liffUrl_('ticket', t.no) }],
+      [['เหตุผล', reason], ['กำหนดเสร็จ', thaiShort_(curDue_(t))]]));
+  }
+  return { ticket: toClient_(t, true) };
+}
+
+/** กดปุ่ม "รับงานด่วนนี้" ใน LINE (กลุ่มหรือแชตส่วนตัว) */
+function takeUrgentByPostback_(ev, uid, no) {
+  const st = uid ? staffByUid_(uid) : null;
+  if (!st) { reply_(ev.replyToken, text_('ปุ่มนี้สำหรับช่าง/เจ้าหน้าที่ที่ลงทะเบียนในระบบแล้ว')); return; }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  let t;
+  try {
+    allTickets_._m = null;
+    t = getTicket_(no);
+    if (t.status !== STATUS.NEW) {
+      reply_(ev.replyToken, text_('งาน ' + tno_(t) + ' มีผู้รับแล้ว' + (t.assigned_name ? ' (' + t.assigned_name + ')' : '') + ' ✋'));
+      return;
+    }
+    const now = new Date();
+    const patch = markUrgentTaken_(t, { status: STATUS.ASSIGNED, assigned_uid: st.uid, assigned_name: st.name, assigned_at: now }, now);
+    updateTicket_(t, patch, 'รับงานด่วน (ปุ่มใน LINE)', { uid: st.uid, name: st.name }, patch.urgent_iso ? 'รับงานด่วน: ' + patch.urgent_iso : '');
+  } finally { lock.releaseLock(); }
+  reply_(ev.replyToken, ticketFlex_(t, '✅ ' + st.name + ' รับงานด่วนแล้ว', '#C92A2A', [{ label: 'เปิดใบงาน', uri: liffUrl_('job', t.no) }],
+    [['รับงานภายในเวลา', t.urgent_iso || '-'], ['กำหนดเสร็จ', thaiDate_(curDue_(t))]]));
+}
+
+/** ทุก 15 นาที: งานด่วนที่ยังไม่มีคนรับ — เตือนเมื่อรอเกิน URGENT_ALERT_MIN นาที (เวลาทำการ),
+ *  เมื่อเหลือเวลารับงาน ≤ 60 นาที และเมื่อเกินเวลา (แต่ละขั้นเตือนครั้งเดียว) */
+function urgentWatch() {
+  const now = new Date();
+  const list = allTickets_().filter(t => urgentWaiting_(t) && t.urgent_at);
+  if (!list.length) return;
+  const alertMin = Math.max(5, Number(setting_('URGENT_ALERT_MIN', 30)) || 30);
+  list.forEach(t => {
+    try {
+      const flags = str_(t.urgent_alerted);
+      const since = workMinutesBetween_(t.urgent_at, now);
+      const left = urgentLeftMin_(t, now);
+      let add = '';
+      if (left < 0 && flags.indexOf('C') < 0) {
+        add = 'C';
+        const msg = ticketFlex_(t, '⛔ งานด่วนเกินเวลารับงาน ' + minTxt_(left), '#862E9C', urgentButtons_(t), [['ต้องรับภายใน', whenFull_(t.urgent_due)]]);
+        pushUrgent_(msg);
+      } else if (left >= 0 && left <= 60 && flags.indexOf('B') < 0) {
+        add = 'AB';
+        notifyUrgent_(t, '⏰ งานด่วนยังไม่มีคนรับ · เหลือเวลา ' + minTxt_(left));
+      } else if (since >= alertMin && flags.indexOf('A') < 0) {
+        add = 'A';
+        notifyUrgent_(t, '🚨 งานด่วนยังไม่มีคนรับ (รอมา ' + minTxt_(since) + ')');
+      }
+      if (add) updateObj_(SH.REQ, REQ_FIELDS, t._row, { urgent_alerted: flags + add });
+    } catch (e) { logError_(e, 'urgentWatch ' + t.no); }
+  });
+}
+
+// ===== Verify.gs =====
+/** ===== ตรวจสิทธิ์ผู้แจ้งกับรายชื่อบุคลากร (v1.6)
+ *  - ชื่อ-นามสกุล + หน่วยงาน ตรงกับรายชื่อ = ยืนยันแล้ว (verified)
+ *  - ไม่ตรง = รอตรวจ (pending) → ยังแจ้งซ่อมได้ แต่ติดป้าย และขึ้นในหน้า "ตรวจสิทธิ์ผู้แจ้ง"
+ *  - แอดมินกด อนุญาต (approved) หรือ ไม่มีสิทธิ์ (denied → แจ้งซ่อมไม่ได้) */
+
+const NAME_PREFIX_RE = /^(นางสาว|นาง|นาย|น\.ส\.|นส\.|ด\.ช\.|ด\.ญ\.|ว่าที่\s*ร\.ต\.(หญิง)?|ผศ\.?\s*ดร\.|รศ\.?\s*ดร\.|ศ\.?\s*ดร\.|ผศ\.|รศ\.|ศ\.|ดร\.|อ\.|อาจารย์|คุณ|สพ\.ญ\.|น\.สพ\.|สพญ\.|นสพ\.)\s*/;
+
+function normName_(s) {
+  s = str_(s).replace(/[​‌‍﻿]/g, '');
+  for (let i = 0; i < 3; i++) s = s.replace(NAME_PREFIX_RE, '').trim();
+  return s.replace(/เเ/g, 'แ').replace(/ํา/g, 'ำ').replace(/[\s.\-]/g, '').toLowerCase();
+}
+/** ระยะแก้ไข (จำนวนตัวอักษรที่ต้องแก้) — หยุดเร็วเมื่อเกิน cap */
+function lev_(a, b, cap) {
+  cap = cap || 3;
+  if (Math.abs(a.length - b.length) > cap) return cap + 1;
+  let prev = [];
+  for (let j = 0; j <= b.length; j++) prev.push(j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i]; let best = i;
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (cur[j] < best) best = cur[j];
+    }
+    if (best > cap) return cap + 1;
+    prev = cur;
+  }
+  return prev[b.length];
+}
+/** ตัดวรรณยุกต์/การันต์/ไม้ไต่คู้ — ชื่อที่พิมพ์ตกเครื่องหมายเหล่านี้ยังนับว่าใกล้กัน */
+function stripMarks_(k) { return k.replace(/[\u0e47-\u0e4e]/g, ''); }
+/** ความต่างของชื่อ (รองรับสลับชื่อ-นามสกุล และพิมพ์ตกวรรณยุกต์/การันต์) */
+function nameDist_(typed, rosterKey, cap) {
+  const parts = str_(typed).replace(NAME_PREFIX_RE, '').trim().split(/\s+/);
+  const cands = [normName_(typed)];
+  if (parts.length >= 2) cands.push(normName_(parts.slice(1).concat(parts[0]).join(' ')));
+  let d = cap + 1;
+  cands.forEach(k => { d = Math.min(d, lev_(k, rosterKey, cap), lev_(stripMarks_(k), stripMarks_(rosterKey), cap)); });
+  return d;
+}
+/** หน่วยงาน: ตัดเลขลำดับ/คำนำหน้าหน่วยงานที่ใช้ต่างกัน แล้วเทียบแบบยืดหยุ่น */
+function deptNorm_(s) {
+  return str_(s).replace(/[\u200b\u200c\u200d\ufeff]/g, '').replace(/^[\d.]+\s*/, '').replace(/^ภ\.\s*/, '')
+    .replace(/โรงพยาบาลสัตว์/g, 'รพส')
+    .replace(/(ภาควิชา|กลุ่มงาน|สำนักงาน|หน่วยงาน|หน่วย|แผนก|งาน|ฝ่าย|ศูนย์|สาขา|คณะสัตวแพทยศาสตร์|ของคณะ)/g, '')
+    .replace(/[\s.\-()]/g, '').toLowerCase();
+}
+/** หน่วยงานที่ผู้แจ้งกรอก ตรงกับหน่วยงานในรายชื่อไหม (รายชื่อไม่มีหน่วยงาน = ใช้ชื่ออย่างเดียว) */
+function deptMatch_(typed, rosterDept) {
+  const segs = str_(rosterDept).split(/\s*[›\\/]\s*/).map(deptNorm_).filter(x => x.length >= 2);
+  if (!segs.length) return true;
+  const t = deptNorm_(typed);
+  if (t.length < 2) return false;
+  return segs.some(g => g.indexOf(t) >= 0 || t.indexOf(g) >= 0 || lev_(t, g, 2) <= 2);
+}
+
+function allRoster_() {
+  if (allRoster_._m) return allRoster_._m;
+  if (!ss_().getSheetByName(SH.ROSTER)) return (allRoster_._m = []);
+  return (allRoster_._m = readAll_(SH.ROSTER, ROSTER_FIELDS).filter(r => r.key));
+}
+/** ดัชนีค้นเร็ว: ชื่อ → แถว (สร้างครั้งเดียวต่อรอบ) */
+function rosterIdx_() {
+  const list = allRoster_();
+  if (rosterIdx_._m && rosterIdx_._src === list) return rosterIdx_._m;
+  const byKey = {};
+  list.forEach(r => { (byKey[r.key] = byKey[r.key] || []).push(r); });
+  rosterIdx_._src = list;
+  return (rosterIdx_._m = { byKey: byKey });
+}
+function verifyEnabled_() { return String(setting_('VERIFY_ENABLED', 'TRUE')).toUpperCase() !== 'FALSE' && allRoster_().length > 0; }
+
+/** ชื่อในรายชื่อที่ใกล้ที่สุด (ต่างไม่เกิน NAME_CAP ตัว) → { r, d, n: จำนวนคนที่ใกล้เท่ากัน }
+ *  ชื่อที่ต่างกัน 1–3 ตัวเป็นเพียง "คำแนะนำ" ให้แอดมินตัดสิน — ยืนยันอัตโนมัติเฉพาะชื่อตรง + หน่วยงานตรง */
+const NAME_CAP = 3;
+function closestRoster_(name) {
+  const k = normName_(name);
+  if (!k) return null;
+  const exact = rosterIdx_().byKey[k];
+  if (exact) return { r: exact[0], d: 0, n: exact.length };
+  let best = null, bd = NAME_CAP + 1, n = 0;
+  allRoster_().forEach(r => {
+    if (Math.abs(r.key.length - k.length) > NAME_CAP + 2) return;
+    const d = r.key === k ? 0 : nameDist_(name, r.key, NAME_CAP);
+    if (d < bd) { bd = d; best = r; n = 1; } else if (d === bd && best && best.key !== r.key) n++;
+  });
+  return best && bd <= NAME_CAP ? { r: best, d: bd, n: n } : null;
+}
+
+/** ประเมินสิทธิ์ผู้แจ้ง (ไม่แตะผลที่แอดมินตัดสินแล้ว) */
+function evaluateUser_(u) {
+  if (u.verify === 'approved' || u.verify === 'denied') return {};
+  if (!verifyEnabled_()) return { verify: '', verify_reason: '' };
+  const pend = (why, r) => ({ verify: 'pending', verify_reason: why.join(' · '), roster_key: r ? r.key : '', roster_name: r ? r.name : '', roster_dept: r ? r.dept : '' });
+  let rows = rosterIdx_().byKey[normName_(u.name)] || [];
+  let near = null;
+  if (!rows.length) {
+    near = closestRoster_(u.name);
+    if (near && near.d === 0) { rows = rosterIdx_().byKey[near.r.key] || [near.r]; near = null; }   // สลับชื่อ-นามสกุล
+  }
+  if (rows.length) {
+    const r = rows.find(x => deptMatch_(u.department, x.dept));
+    if (!r) return pend(['หน่วยงานไม่ตรงกับรายชื่อบุคลากร'], rows[0]);
+    if (r.bound_uid && r.bound_uid !== u.uid) return pend(['ชื่อนี้ผูกกับ LINE บัญชีอื่นแล้ว'], r);
+    return { verify: 'verified', verify_reason: '', roster_key: r.key, roster_name: r.name, roster_dept: r.dept };
+  }
+  if (near) {
+    const why = ['ชื่อใกล้เคียง (ต่าง ' + near.d + ' ตัว)'];
+    if (!deptMatch_(u.department, near.r.dept)) why.push('หน่วยงานไม่ตรง');
+    if (near.r.bound_uid && near.r.bound_uid !== u.uid) why.push('ชื่อนี้ผูกกับ LINE บัญชีอื่นแล้ว');
+    return pend(why, near.r);
+  }
+  return pend(['ไม่พบชื่อในรายชื่อบุคลากร'], null);
+}
+
+/** ผูกแถวรายชื่อกับบัญชี LINE (ครั้งแรกเท่านั้น) */
+function bindRoster_(key, uid) {
+  if (!key || !uid) return;
+  const r = allRoster_().find(x => x.key === key && (!x.bound_uid || x.bound_uid === uid));
+  if (r && r.bound_uid !== uid) { updateObj_(SH.ROSTER, ROSTER_FIELDS, r._row, { bound_uid: uid, bound_at: new Date() }); r.bound_uid = uid; }
+}
+
+/** ตรวจแล้วบันทึกผลลงชีตผู้แจ้ง — คืนค่า user ที่อัปเดตแล้ว */
+function refreshVerify_(u) {
+  if (!u) return u;
+  const p = evaluateUser_(u);
+  const changed = Object.keys(p).filter(k => str_(u[k]) !== str_(p[k]));
+  if (changed.length) { updateObj_(SH.USERS, USER_FIELDS, u._row, p); Object.assign(u, p); }
+  if (u.verify === 'verified') bindRoster_(u.roster_key, u.uid);
+  return u;
+}
+
+/** รายชื่อหน่วยงานจากรายชื่อบุคลากร (ให้เลือกตอนลงทะเบียน — ไม่ใช่ข้อมูลส่วนบุคคล) */
+function rosterDepts_() {
+  const cache = CacheService.getScriptCache(), hit = cache.get('roster_depts');
+  if (hit) return JSON.parse(hit);
+  const seen = {};
+  allRoster_().forEach(r => str_(r.dept).split(' › ').forEach(x => { x = x.trim(); if (x.length >= 3) seen[x] = 1; }));
+  const out = Object.keys(seen).sort((a, b) => a.localeCompare(b, 'th')).slice(0, 400);
+  try { cache.put('roster_depts', JSON.stringify(out), 21600); } catch (e) { /* ใหญ่เกิน cache */ }
+  return out;
+}
+
+/** ข้อความสถานะผู้แจ้ง บันทึกลงใบงานตอนแจ้ง (ใช้กรองรายเดือน) — ผู้ไม่มีสิทธิ์จะถูกปฏิเสธที่นี่ */
+function reporterCheck_(me, profile) {
+  if (me.staff) return 'เจ้าหน้าที่';
+  if (profile && profile.verify === 'denied') throw new Error(str_(setting_('VERIFY_DENY_TEXT', 'บัญชีนี้ไม่มีสิทธิ์แจ้งซ่อม')));
+  if (!verifyEnabled_() || !profile) return '';
+  if (profile.verify === 'verified') return 'ยืนยันแล้ว';
+  if (profile.verify === 'approved') return 'แอดมินอนุญาต';
+  return 'รอตรวจ: ' + (profile.verify_reason || '-');
+}
+function isUnverifiedCheck_(s) { return /^รอตรวจ/.test(str_(s)); }
+
+/* ---------- หน้า "ตรวจสิทธิ์ผู้แจ้ง" (แอดมิน) ---------- */
+function rosterInfo_() { try { return JSON.parse(str_(setting_('ROSTER_INFO', '')) || '{}'); } catch (e) { return {}; } }
+
+function verifySummary_(ym) {
+  const users = allUsers_().filter(u => !staffByUid_(u.uid));
+  const month = allTickets_().filter(t => fmt_(t.created_at, 'yyyy-MM') === ym && isUnverifiedCheck_(t.reporter_check));
+  return {
+    pending: users.filter(u => u.verify === 'pending').length,
+    monthUsers: Object.keys(month.reduce((m, t) => { m[t.reporter_uid] = 1; return m; }, {})).length,
+    monthTickets: month.length
+  };
+}
+
+function apiVerifyList_(me, d) {
+  requireAdmin_(me);
+  const ym = /^\d{4}-\d{2}$/.test(str_(d.month)) ? d.month : fmt_(new Date(), 'yyyy-MM');
+  const users = allUsers_().filter(u => !staffByUid_(u.uid));
+  users.forEach(u => { if (!u.verify || u.verify === 'pending') refreshVerify_(u); });
+  const monthT = allTickets_().filter(t => fmt_(t.created_at, 'yyyy-MM') === ym);
+  const tOf = uid => monthT.filter(t => t.reporter_uid === uid);
+  const list = users.filter(u => ['pending', 'approved', 'denied'].indexOf(u.verify) >= 0 || tOf(u.uid).some(t => isUnverifiedCheck_(t.reporter_check)))
+    .map(u => {
+      const mine = tOf(u.uid);
+      return {
+        uid: u.uid, name: u.name, dept: u.department, phone: u.phone, line: u.line_name, reg: thaiShort_(u.registered_at),
+        st: u.verify === 'approved' ? 'ok' : u.verify === 'denied' ? 'no' : u.verify === 'verified' ? 'verified' : 'wait',
+        why: str_(u.verify_reason).split(' · ').filter(Boolean),
+        sug: u.roster_name ? { key: u.roster_key, name: u.roster_name, dept: str_(u.roster_dept).split(' › ').pop(), d: u.roster_key ? Math.min(NAME_CAP, nameDist_(u.name, u.roster_key, NAME_CAP)) : 0 } : null,
+        by: u.verify_by ? u.verify_by + ' · ' + thaiShort_(u.verify_at) : '', note: str_(u.verify_note),
+        tks: mine.map(t => ({ no: t.no, code: tno_(t), unverified: isUnverifiedCheck_(t.reporter_check) }))
+      };
+    }).sort((a, b) => ({ wait: 0, no: 1, ok: 2, verified: 3 }[a.st] - { wait: 0, no: 1, ok: 2, verified: 3 }[b.st]) || b.tks.length - a.tks.length);
+  const months = {};
+  allTickets_().forEach(t => { months[fmt_(t.created_at, 'yyyy-MM')] = 1; }); months[fmt_(new Date(), 'yyyy-MM')] = 1;
+  return {
+    ym: ym, label: ymThai_(ym), months: Object.keys(months).sort().reverse().slice(0, 24).map(k => ({ ym: k, label: ymThai_(k) })),
+    enabled: verifyEnabled_(), roster: Object.assign({ n: allRoster_().length }, rosterInfo_()),
+    sum: {
+      verified: users.filter(u => u.verify === 'verified').length, wait: list.filter(x => x.st === 'wait').length,
+      ok: list.filter(x => x.st === 'ok').length, no: list.filter(x => x.st === 'no').length
+    },
+    users: list,
+    // รายการใบงานของเดือน (ส่งออก Excel)
+    rows: monthT.filter(t => str_(t.reporter_check) && t.reporter_check !== 'ยืนยันแล้ว' && t.reporter_check !== 'เจ้าหน้าที่').map(t => ({
+      code: tno_(t), created: thaiDateTime_(t.created_at), reporter: t.reporter_name, dept: t.department, phone: t.phone,
+      items: t.items_text, status: t.status, check: t.reporter_check,
+      now: (function (u) { return u ? ({ verified: 'ยืนยันแล้ว', approved: 'แอดมินอนุญาต', denied: 'ไม่มีสิทธิ์', pending: 'รอตรวจ' }[u.verify] || '') : ''; })(userByUid_(t.reporter_uid))
+    })),
+    exclude: str_(setting_('ROSTER_EXCLUDE', 'นิสิต|ผู้มาติดต่อ'))
+  };
+}
+
+function apiVerifyDecide_(me, d) {
+  requireAdmin_(me);
+  const u = userByUid_(d.uid);
+  if (!u) throw new Error('ไม่พบผู้แจ้ง');
+  const allow = d.decision === 'approve';
+  if (!allow && d.decision !== 'deny') throw new Error('ไม่รู้จักคำสั่ง');
+  const note = clip_(d.note, 300);
+  if (!allow && note.length < 3) throw new Error('กรุณาระบุเหตุผลที่ไม่มีสิทธิ์');
+  const patch = { verify: allow ? 'approved' : 'denied', verify_by: me.name, verify_at: new Date(), verify_note: note };
+  updateObj_(SH.USERS, USER_FIELDS, u._row, patch);
+  Object.assign(u, patch);
+  if (allow && d.bind && u.roster_key) bindRoster_(u.roster_key, u.uid);
+  log_('', allow ? 'อนุญาตผู้แจ้ง (ตรวจสิทธิ์)' : 'ผู้แจ้งไม่มีสิทธิ์', '', '', me, u.name + (u.department ? ' / ' + u.department : '') + (note ? ' | ' + note : ''));
+  return { ok: true, st: allow ? 'ok' : 'no' };
+}
+
+/** เปลี่ยนใจภายหลัง: คืนสถานะให้ระบบตรวจใหม่ */
+function apiVerifyReset_(me, d) {
+  requireAdmin_(me);
+  const u = userByUid_(d.uid);
+  if (!u) throw new Error('ไม่พบผู้แจ้ง');
+  updateObj_(SH.USERS, USER_FIELDS, u._row, { verify: '', verify_by: me.name, verify_at: new Date(), verify_note: 'ล้างผลการตรวจ' });
+  u.verify = '';
+  refreshVerify_(u);
+  log_('', 'ล้างผลตรวจสิทธิ์ผู้แจ้ง', '', '', me, u.name);
+  return { ok: true };
+}
+
+/** นำเข้ารายชื่อบุคลากร (หน้าเว็บอ่านไฟล์ .xls/.xlsx แล้วส่งแถวมา) — แทนที่รายชื่อเดิมทั้งหมด คงการผูกบัญชี LINE เดิมไว้ */
+function apiRosterImport_(me, d) {
+  requireAdmin_(me);
+  const rows = (d.rows || []).slice(0, 8000);
+  if (!rows.length) throw new Error('ไม่พบรายชื่อในไฟล์');
+  if (!ss_().getSheetByName(SH.ROSTER)) ensureSheet_(SH.ROSTER, ROSTER_FIELDS, '#0B7285');
+  const old = allRoster_();
+  const bound = {};
+  old.forEach(r => { if (r.bound_uid) (bound[r.key] = bound[r.key] || []).push(r); });
+  const now = new Date(), seen = {};
+  const out = [];
+  rows.forEach(x => {
+    const name = clip_(x.name, 120), key = normName_(name);
+    if (!key) return;
+    const dept = clip_(x.dept, 200), sig = key + '|' + deptNorm_(dept);
+    if (seen[sig]) return; seen[sig] = 1;   // คนเดียวมีหลายบัตรใน HIP → เก็บแถวเดียว
+    // คงการผูกบัญชี LINE เดิม: ชื่อเดียวกัน หน่วยงานเดียวกัน (หรือมีคนชื่อนี้คนเดียว)
+    const cand = (bound[key] || []).filter(o => !o._used);
+    const b = cand.find(o => deptNorm_(o.dept) === deptNorm_(dept)) || (cand.length === 1 ? cand[0] : null);
+    if (b) b._used = true;
+    out.push({ key: key, name: name, dept: dept, bound_uid: b ? b.bound_uid : '', bound_at: b ? b.bound_at : '', imported_at: now });
+  });
+  const sh = ss_().getSheetByName(SH.ROSTER);
+  const map = colMap_(sh, ROSTER_FIELDS), width = sh.getLastColumn();
+  if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, width).clearContent();
+  const grid = out.map(o => { const a = new Array(width).fill(''); ROSTER_FIELDS.forEach(([k]) => { a[map[k] - 1] = o[k]; }); return a; });
+  if (grid.length) sh.getRange(2, 1, grid.length, width).setValues(grid);
+  allRoster_._m = null;
+  try { CacheService.getScriptCache().remove('roster_depts'); } catch (e) { /* ignore */ }
+  const info = { at: thaiDateTime_(now), by: me.name, file: clip_(d.file, 120), source: clip_(d.source, 30), total: Number(d.total) || rows.length, excluded: Number(d.excluded) || 0 };
+  setSetting_('ROSTER_INFO', JSON.stringify(info));
+  // ตรวจผู้แจ้งทุกคนใหม่ตามรายชื่อชุดนี้ (ไม่แตะผลที่แอดมินตัดสินแล้ว)
+  let verified = 0, pending = 0;
+  allUsers_().filter(u => !staffByUid_(u.uid)).forEach(u => { refreshVerify_(u); if (u.verify === 'verified') verified++; else if (u.verify === 'pending') pending++; });
+  log_('', 'นำเข้ารายชื่อบุคลากร', '', '', me, out.length + ' คน จากไฟล์ ' + info.file + ' (ตัดออก ' + info.excluded + ' แถว)');
+  return { n: out.length, verified: verified, pending: pending, info: info };
+}
+
 // ===== Setup.gs =====
 /** ===== ติดตั้งระบบ / เมนู / Trigger / Rich menu / ย้ายบัญชี ===== */
 
@@ -2344,11 +2950,20 @@ function setup() {
   ss.setSpreadsheetTimeZone(TZ);
   if (/^(สเปรดชีตไม่มีชื่อ|Untitled)/.test(ss.getName())) ss.rename('ระบบแจ้งซ่อม LINE');
 
+  // เลขใบงาน (v1.6) — แทรกเป็นคอลัมน์ที่ 2 ถัดจากเลขลำดับ ให้อ่านชีตง่าย
+  const req0 = ss.getSheetByName(SH.REQ);
+  if (req0 && req0.getLastColumn() && req0.getRange(1, 1, 1, req0.getLastColumn()).getValues()[0].map(String).indexOf('เลขใบงาน') < 0) {
+    req0.insertColumnAfter(1); req0.getRange(1, 2).setValue('เลขใบงาน');
+  }
   ensureSheet_(SH.REQ, REQ_FIELDS, '#1F3864');
+  backfillCodes_();
+  settings_._cache = null;
+  recalcDue_();
   ensureSheet_(SH.LOG, LOG_FIELDS, '#5C3D2E');
   ensureSheet_(SH.STAFF, STAFF_FIELDS, '#2B8A3E');
   ensureSheet_(SH.USERS, USER_FIELDS, '#1864AB');
   ensureSheet_(SH.KB, KB_FIELDS, '#6741D9');
+  ensureSheet_(SH.ROSTER, ROSTER_FIELDS, '#0B7285');
 
   // Settings: เพิ่มเฉพาะ key ที่ยังไม่มี (ไม่ทับค่าที่ตั้งไว้)
   let set = ss.getSheetByName(SH.SET);
@@ -2392,6 +3007,33 @@ function setup() {
   try { SpreadsheetApp.getUi().alert(msg); } catch (e) { console.log(msg); }
 }
 
+/** ใบเก่าที่ยังไม่มีเลขใบงาน: ให้เลขตามเดือนที่แจ้ง เรียงตามเลขลำดับ (รันซ้ำได้ ไม่ทับเลขเดิม) */
+function backfillCodes_() {
+  const list = allTickets_().slice().sort((a, b) => a.no - b.no);
+  const todo = list.filter(t => !str_(t.code));
+  if (!todo.length) return 0;
+  const sh = ss_().getSheetByName(SH.REQ);
+  const col = colMap_(sh, REQ_FIELDS).code;
+  todo.forEach(t => { t.code = nextCode_(t.created_at ? new Date(t.created_at) : new Date(), list); sh.getRange(t._row, col).setValue(t.code); });
+  allTickets_._m = null;
+  return todo.length;
+}
+
+/** v1.6: กำหนดเสร็จเป็นวันทำการ — คำนวณใหม่ให้งานที่ยังไม่เสร็จ (รันซ้ำได้ ผลเหมือนเดิม) */
+function recalcDue_() {
+  const sh = ss_().getSheetByName(SH.REQ);
+  let n = 0;
+  allTickets_().forEach(t => {
+    if (OPEN_STATUSES.indexOf(t.status) < 0 || t.status === STATUS.WAIT_ACCEPT) return;
+    const patch = {};
+    if (isRework_(t)) { const d = slaDue_(t.rework_at, t.rework_pause_days); if (!t.rework_due || +new Date(t.rework_due) !== +d) patch.rework_due = d; }
+    else if (!t.done_at && t.created_at) { const d = slaDue_(t.created_at, t.pause_days); if (!t.due_date || +new Date(t.due_date) !== +d) patch.due_date = d; }
+    if (Object.keys(patch).length) { updateObj_(SH.REQ, REQ_FIELDS, t._row, patch); n++; }
+  });
+  if (n) log_('', 'คำนวณกำหนดเสร็จใหม่เป็นวันทำการ', '', '', { uid: 'system', name: 'ระบบ' }, n + ' ใบ');
+  return n;
+}
+
 function ensureSheet_(name, fields, color) {
   const ss = ss_();
   let sh = ss.getSheetByName(name);
@@ -2407,13 +3049,13 @@ function ensureSheet_(name, fields, color) {
   sh.getRange(1, 1, 1, sh.getLastColumn()).setFontWeight('bold').setBackground(color).setFontColor('#FFFFFF').setWrap(true).setVerticalAlignment('middle');
   sh.setFrozenRows(1);
   if (name === SH.REQ) sh.setFrozenColumns(3);
-  colMap_._m = null; allTickets_._m = null; allStaff_._m = null; allUsers_._m = null; allKb_._m = null;
+  colMap_._m = null; allTickets_._m = null; allStaff_._m = null; allUsers_._m = null; allKb_._m = null; allRoster_._m = null;
   return sh;
 }
 
 /** ป้องกันการแก้ไขข้อมูลโดยตรง — แก้ได้เฉพาะเจ้าของไฟล์ (ระบบ) ; ผู้ที่ได้รับแชร์ดูได้อย่างเดียว */
 function protectSheets_() {
-  [SH.REQ, SH.LOG, SH.STAFF, SH.USERS, SH.KB, SH.SET].concat(LIST_SHEETS).forEach(n => {
+  [SH.REQ, SH.LOG, SH.STAFF, SH.USERS, SH.KB, SH.ROSTER, SH.SET].concat(LIST_SHEETS).forEach(n => {
     const sh = ss_().getSheetByName(n);
     if (!sh) return;
     sh.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(p => p.remove());
@@ -2444,8 +3086,9 @@ function installTriggers() {
   ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('dailyJob').timeBased().atHour(8).everyDays(1).inTimezone(TZ).create();
   ScriptApp.newTrigger('monthlyJob').timeBased().onMonthDay(1).atHour(7).inTimezone(TZ).create();
+  ScriptApp.newTrigger('urgentWatch').timeBased().everyMinutes(15).create();
   ScriptApp.newTrigger('onEditAudit').forSpreadsheet(ss_()).onEdit().create();
-  try { SpreadsheetApp.getUi().alert('ติดตั้งงานตั้งเวลาแล้ว\n- สรุปงาน/เตือนตรวจรับ ทุกวัน 08:00\n- รายงานรายเดือน + สำรองข้อมูล ทุกวันที่ 1 เวลา 07:00\n- บันทึกการแก้ไขชีตด้วยมือ'); } catch (e) { /* no ui */ }
+  try { SpreadsheetApp.getUi().alert('ติดตั้งงานตั้งเวลาแล้ว\n- สรุปงาน/เตือนตรวจรับ ทุกวัน 08:00\n- รายงานรายเดือน + สำรองข้อมูล ทุกวันที่ 1 เวลา 07:00\n- ตรวจงานด่วน (ยังไม่มีคนรับ/ใกล้ครบเวลา) ทุก 15 นาที\n- บันทึกการแก้ไขชีตด้วยมือ'); } catch (e) { /* no ui */ }
 }
 
 /** นำเข้าเทมเพลต .docx จากเว็บ แล้วแปลงเป็น Google Docs (ต้องเปิด Advanced Service: Drive API) */

@@ -47,7 +47,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--pri-soft);border
 .sig .clr{position:absolute;right:8px;top:8px;border:0;background:#F1F3F5;border-radius:8px;padding:4px 10px;font:inherit;font-size:13px;color:var(--muted)}
 .btn{display:block;width:100%;border:0;border-radius:12px;padding:13px;font:inherit;font-weight:700;font-size:16px;background:var(--pri);color:var(--pri-ink)}
 .btn.sec{background:#EEF1F4;color:var(--ink)}
-.btn.blue{background:var(--blue)}.btn.warn{background:var(--warn)}.btn.bad{background:var(--bad)}
+.btn.blue{background:var(--blue)}.btn.red{background:#E03131}.btn.warn{background:var(--warn)}.btn.bad{background:var(--bad)}
 .btn[disabled]{opacity:.55}
 .btn.sm{display:inline-block;width:auto;padding:8px 14px;font-size:14px;border-radius:10px}
 .bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 12px calc(10px + env(safe-area-inset-bottom));z-index:6}
@@ -107,6 +107,14 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--pri-soft);border
 .sbox h2{margin:0 0 6px;font-size:17px}
 .seg button{white-space:nowrap}
 .card.st.off{opacity:.62}
+.urg{display:flex;gap:10px;align-items:flex-start;margin-top:14px;padding:12px;border:1.5px solid #FFD8A8;border-radius:12px;background:#FFF9F2}
+.urg input{margin-top:4px;width:20px;height:20px;flex:none}.urg.on{border-color:#E8590C;background:#FFF0E6}.urg b{color:#C2410C}
+.cats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px}
+.catb{border:1.5px solid var(--line);background:var(--card);border-radius:12px;padding:10px 12px;text-align:left;font:inherit;color:var(--ink);line-height:1.3}
+.catb b{display:block;font-size:15px}.catb span{font-size:12px;color:var(--muted)}
+.catb.on{border-color:var(--pri);background:var(--pri-soft)}.catb.on b{color:var(--pri)}
+.catb:last-child:nth-child(odd){grid-column:1/-1}
+.cardBox{margin:4px 0 8px 26px;padding:10px 12px;border-left:3px solid var(--pri-soft);background:#FBFCFD;border-radius:0 10px 10px 0}
 .imgs.big img{width:calc(50% - 4px);height:auto;max-height:260px;aspect-ratio:4/3}
 .zoomview{position:fixed;inset:0;background:#000d;z-index:50;display:grid;place-items:center;padding:12px}.zoomview img{max-width:100%;max-height:100%;border-radius:8px}
 .kbc{display:block;text-decoration:none;color:inherit}.kbc h3{margin:0 0 4px;font-size:16px}.kbc p{margin:0;color:var(--muted);font-size:13.5px}
@@ -128,6 +136,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--pri-soft);border
 .slot .tm{flex:none;width:52px;font-weight:700;color:var(--pri)}
 .slot .bd{flex:1;min-width:0}.slot .bd .t2{font-size:13px;color:var(--muted)}
 .note.warn{background:var(--warn-soft);color:#A35200}
+.kv dd{white-space:pre-line}
+.note.urgn{background:#FFF5F5;color:#C92A2A;border:1px solid #FFC9C9}
+.urgb,.tk .urgb{display:inline-block;background:#E03131;color:#fff;border-radius:6px;padding:1px 7px;font-size:12px;font-weight:700;vertical-align:1px}
+.tk.isurg{border-left:4px solid #E03131}
 .empty{text-align:center;color:var(--muted);padding:36px 0}
 .toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:#212529;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;z-index:20;max-width:90%;text-align:center}
 .loading{position:fixed;inset:0;background:#fff9;display:grid;place-items:center;z-index:30}
@@ -143,7 +155,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--pri-soft);border
 
 .dwrap{max-width:1180px;margin:0 auto;padding:12px 12px 0}
 .dgrid{display:grid;grid-template-columns:1fr;gap:12px}
-@media(min-width:900px){.dgrid{grid-template-columns:1fr 1fr}.dgrid .wide{grid-column:1/-1}.kpis{grid-template-columns:repeat(5,1fr)!important}}
+@media(min-width:900px){.dgrid{grid-template-columns:1fr 1fr}.dgrid .wide{grid-column:1/-1}.kpis{grid-template-columns:repeat(6,1fr)!important}}
 .dgrid .card{margin:0}
 .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px}
 .kpi{background:var(--card);border-radius:var(--r);padding:12px 14px;box-shadow:0 1px 2px rgba(16,24,40,.05)}
@@ -166,6 +178,25 @@ table.tt td{text-align:center;padding:8px 4px;border-bottom:1px solid var(--line
 .rlist a{display:flex;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line);color:inherit;text-decoration:none;font-size:14px}
 .rlist .kd{font-size:11px;font-weight:700;border-radius:6px;padding:1px 7px;color:#fff;background:#2A6BD8}.rlist .kd.pdf{background:#C92A2A}
 .legend{display:flex;gap:14px;font-size:12.5px;color:var(--muted);margin-top:4px}.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.vf-sum{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.vf-sum .stat b{font-size:22px}.vf-sum .stat.bad b{color:var(--bad)}.vf-sum .stat.warn b{color:var(--warn)}.vf-sum .stat.ok b{color:#2B8A3E}
+.vf{border-left:4px solid var(--warn)}.vf.ok{border-left-color:#2F9E44}.vf.no{border-left-color:var(--bad)}.vf.verified{border-left-color:#ADB5BD}
+.vf .who{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.vf .who b{font-size:16px}.vf .why{display:inline-block;background:var(--warn-soft);color:#A35200;border-radius:8px;padding:2px 8px;font-size:12.5px;font-weight:600;margin:6px 6px 0 0}
+.vf .why.bad{background:var(--bad-soft);color:var(--bad)}
+.vf .sug{background:#F8F9FA;border:1px dashed #CED4DA;border-radius:10px;padding:8px 10px;margin:10px 0;font-size:13.5px}
+.vf .tks{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}.vf .tks a{background:#EEF1F4;border-radius:8px;padding:3px 8px;font-size:12.5px;color:var(--ink);text-decoration:none}
+.vf .tks a.u{background:var(--warn-soft);color:#A35200}
+.vf .acts{display:flex;gap:8px;margin-top:10px}.vf .acts .btn{flex:1}
+.imp{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.imp .row2{display:flex;gap:8px;flex-wrap:wrap}
+.imp .btn{flex:none;width:auto;padding:10px 16px;height:auto}
+.dash-vf{display:flex;align-items:center;gap:12px;background:#FFF9DB;border:1px solid #FFE066;border-radius:14px;padding:12px 14px;margin-bottom:12px}
+.dash-vf b{font-size:15px}.dash-vf .btn{flex:none;width:auto;padding:10px 18px;height:auto}
+.s-ok{background:#EBFBEE;color:#2B8A3E}
+.rchk{display:inline-block;background:var(--warn-soft);color:#A35200;border-radius:6px;padding:1px 7px;font-size:12px;font-weight:600}
+.rchk.bad{background:var(--bad-soft);color:var(--bad)}
+.grpchk{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}.grpchk input{width:20px;height:20px}.grpchk span{flex:1}
+@media(min-width:900px){.vf-list{display:grid;grid-template-columns:1fr 1fr;gap:12px}.vf-list .card{margin:0}}
 </style>
 <link rel="preconnect" href="https://script.google.com" crossorigin>
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
@@ -350,12 +381,19 @@ async function route() {
   const p = u.searchParams.get('p') || 'form';
   const no = u.searchParams.get('no');
   window.scrollTo(0, 0);
-  const pages = { reg: pageReg, dash: pageDash, form: pageForm, mine: pageMine, ticket: pageTicket, accept: pageAccept, staff: pageStaff, job: pageJob, mysig: pageMySig, search: pageSearch, cal: pageCal, team: pageTeam, kb: pageKb, kbv: pageKbView, kbe: pageKbEdit };
+  const pages = { reg: pageReg, dash: pageDash, form: pageForm, mine: pageMine, ticket: pageTicket, accept: pageAccept, staff: pageStaff, job: pageJob, mysig: pageMySig, search: pageSearch, cal: pageCal, team: pageTeam, kb: pageKb, kbv: pageKbView, kbe: pageKbEdit, verify: pageVerify };
   (pages[p] || pageForm)(no);
 }
 
 /* ---------- 1) ฟอร์มแจ้งซ่อม ---------- */
 /* ---------- 0) ลงทะเบียนผู้แจ้ง (ครั้งแรกครั้งเดียว) ---------- */
+/** สถานะยืนยันตัวตนของผู้แจ้ง (แสดงในหน้าข้อมูลของฉัน / ฟอร์มแจ้งซ่อม) */
+function verifyNote(P) {
+  if (!P || !P.verify) return '';
+  if (P.verify === 'verified' || P.verify === 'approved') return '<div class="note" style="margin:12px 0 0;background:#EBFBEE;color:#2B8A3E">✓ ยืนยันตัวตนแล้ว</div>';
+  if (P.verify === 'denied') return `<div class="note warn" style="margin:12px 0 0;background:var(--bad-soft);color:var(--bad)">${esc(P.deny_text || 'บัญชีนี้ไม่มีสิทธิ์แจ้งซ่อม')}</div>`;
+  return `<div class="note warn" style="margin:12px 0 0">ยังไม่ยืนยันตัวตน: ${esc(P.verify_reason || '')}<br><span class="small">แจ้งซ่อมได้ตามปกติ เจ้าหน้าที่จะตรวจสอบภายหลัง · ตรวจชื่อ-นามสกุลและหน่วยงานให้ตรงกับทะเบียนบุคลากร</span></div>`;
+}
 function pageReg() {
   const P = INIT.me.profile || {}, first = !INIT.me.profile, L = INIT.lists;
   let bld = P.building || '';
@@ -363,8 +401,10 @@ function pageReg() {
     <div class="note">${first ? 'ลงทะเบียนครั้งแรกครั้งเดียว ระบบจะผูกบัญชี LINE นี้กับข้อมูลของคุณ และกรอกให้อัตโนมัติทุกครั้งที่แจ้งซ่อม' : 'แก้ไขข้อมูลที่ใช้กรอกอัตโนมัติในฟอร์มแจ้งซ่อม'}</div>
     <div class="card"><h2>ข้อมูลผู้แจ้ง</h2>
       <label class="f">ชื่อ-นามสกุล <b>*</b></label><input type="text" id="nm" value="${esc(P.name || INIT.me.name)}">
-      <label class="f">ภาควิชา/หน่วยงาน <b>*</b></label><input type="text" id="dep" value="${esc(P.department || '')}">
-      <label class="f">หมายเลขติดต่อกลับ <b>*</b></label><input type="tel" id="ph" value="${esc(P.phone || '')}"></div>
+      <label class="f">ภาควิชา/หน่วยงาน <b>*</b></label><input type="text" id="dep" list="depList" autocomplete="off" value="${esc(P.department || '')}" placeholder="พิมพ์แล้วเลือกจากรายการ">
+      <datalist id="depList">${(L.depts || []).map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+      <label class="f">หมายเลขติดต่อกลับ <b>*</b></label><input type="tel" id="ph" value="${esc(P.phone || '')}">
+      <div class="hint">กรอกชื่อ-นามสกุลจริงและหน่วยงานให้ตรงกับทะเบียนบุคลากร ระบบจะยืนยันตัวตนให้อัตโนมัติ</div>${verifyNote(P)}</div>
     <div class="card"><h2>สถานที่ทำงานประจำ <b style="color:var(--bad)">*</b></h2>
       <div class="hint" style="margin:0 0 8px">เลือกอาคาร หรือกรอกชั้น/ห้อง อย่างน้อย 1 ช่อง</div>
       <div class="chips" id="bld">${L.buildings.map(b => `<button type="button" class="chip${b === bld ? ' on' : ''}" data-b="${esc(b)}">${esc(b)}</button>`).join('')}</div>
@@ -379,17 +419,31 @@ function pageReg() {
       : (!d.building && !d.floor && !d.room) ? 'สถานที่ทำงานประจำ อย่างน้อย 1 ช่อง' : !d.pdpa ? 'การยินยอมเก็บข้อมูล' : '';
     if (miss) return toast('กรุณากรอก: ' + miss);
     const r = await run(() => api('saveProfile', d));
-    INIT.me.profile = r.profile; CACHE.set('init', INIT); toast(first ? 'ลงทะเบียนสำเร็จ' : 'บันทึกแล้ว'); go(first ? 'form' : 'mine');
+    INIT.me.profile = r.profile; CACHE.set('init', INIT);
+    toast((first ? 'ลงทะเบียนสำเร็จ' : 'บันทึกแล้ว') + (r.profile.verify === 'verified' ? ' · ยืนยันตัวตนแล้ว ✓' : r.profile.verify === 'pending' ? ' · รอเจ้าหน้าที่ตรวจสอบ' : ''), 3500);
+    go(first ? 'form' : 'mine');
   };
 }
 
+const CAT_HINT = { 'Hardware': 'เครื่องเสีย ย้าย/ติดตั้ง', 'Software': 'โปรแกรม Windows Antivirus', 'Network': 'อินเทอร์เน็ต WiFi สาย LAN', 'CCTV & Access Control': 'กล้อง บัตร สแกนนิ้ว/ใบหน้า' };
+function formCats(L) {
+  const used = {}; L.groups.forEach(g => g.items.forEach(it => { if (it.cat) used[it.cat] = 1; }));
+  const list = (L.categories || []).filter(c => used[c]).map(c => ({ key: c, label: c, hint: CAT_HINT[c] || '' }));
+  list.push({ key: '_other', label: 'อื่นๆ / ไม่แน่ใจ', hint: 'ช่างจะเลือกประเภทให้' });
+  return list;
+}
 function pageForm() {
   if (!INIT.me.profile) return pageReg();
   const L = INIT.lists, P = INIT.me.profile, last = LS.get('reporter', {});
+  if (P.verify === 'denied') {
+    app.innerHTML = topBar('แจ้งซ่อม') + `<div class="wrap">${verifyNote(P)}<div style="height:12px"></div><button class="btn sec" onclick="go('mine')">ดูงานที่เคยแจ้ง</button></div>`;
+    return;
+  }
   const saved = { reporter_name: P.name, department: P.department, phone: P.phone, building: last.building || P.building, floor: last.floor || P.floor, room: last.room || P.room };
-  const st = { building: saved.building || '', items: new Set() };
+  const st = { building: saved.building || '', items: new Set(), cat: '' };
   app.innerHTML = topBar('แจ้งซ่อมคอมพิวเตอร์และอุปกรณ์') + `<div class="wrap">
-    <div class="note">กรอกข้อมูลให้ครบ ระบบจะออกเลขรับแจ้งและแจ้งสถานะกลับทาง LINE · กำหนดแล้วเสร็จภายใน ${INIT.slaDays} วัน<br>💡 <a href="javascript:void 0" onclick="go('kb')">ลองดูวิธีแก้ปัญหาเบื้องต้นก่อน</a> — บางปัญหาแก้เองได้ใน 1 นาที</div>
+    <div class="note">กรอกข้อมูลให้ครบ ระบบจะออกเลขรับแจ้งและแจ้งสถานะกลับทาง LINE · กำหนดแล้วเสร็จภายใน ${INIT.slaDays} วันทำการ (จ–ศ)<br>💡 <a href="javascript:void 0" onclick="go('kb')">ลองดูวิธีแก้ปัญหาเบื้องต้นก่อน</a> — บางปัญหาแก้เองได้ใน 1 นาที</div>
+    ${P.verify === 'pending' ? `<div class="note warn">ยังไม่ยืนยันตัวตน — แจ้งซ่อมได้ตามปกติ · <a href="javascript:void 0" onclick="go('reg')"><b>ตรวจชื่อและหน่วยงาน</b></a> ให้ตรงกับทะเบียนบุคลากร</div>` : ''}
     <div class="card"><h2><span class="n">1</span>ผู้แจ้ง <a href="javascript:void 0" onclick="go('reg')" class="small" style="margin-left:auto;font-weight:400">แก้ข้อมูลของฉัน</a></h2>
       <label class="f">ชื่อ-นามสกุล <b>*</b></label><input type="text" id="reporter_name" value="${esc(saved.reporter_name || INIT.me.name)}">
       <label class="f">ภาควิชา/หน่วยงาน <b>*</b></label><input type="text" id="department" value="${esc(saved.department || '')}">
@@ -401,12 +455,13 @@ function pageForm() {
       <div><label class="f">ห้อง</label><input type="text" id="room" value="${esc(saved.room || '')}"></div></div>
     </div>
     <div class="card"><h2><span class="n">3</span>รายการที่ต้องการแจ้งซ่อม <b style="color:var(--bad)">*</b></h2>
-      ${L.groups.map(g => `<div class="grp"><div class="gh"><span class="gn">${g.no}.</span><span>${esc(g.name)}</span></div>
-        ${g.items.map(it => `<label class="chk"><input type="checkbox" value="${it.id}"><span>${esc(it.name)}</span></label>`).join('')}</div>`).join('')}
-      <div id="cardBox" class="hidden"><label class="f">ชื่อ-นามสกุล (เจ้าของบัตร) <b>*</b></label><input type="text" id="card_name">
-        <label class="f">เลขหลังบัตรบุคลากร/บัตรจอดรถ</label><input type="text" id="card_no"></div>
+      <label class="f" style="margin-top:0">ประเภทของปัญหา <b>*</b></label>
+      <div class="cats" id="cats">${formCats(L).map(c => `<button type="button" class="catb" data-c="${esc(c.key)}"><b>${esc(c.label)}</b><span>${esc(c.hint)}</span></button>`).join('')}</div>
+      <div id="itemsBox" class="hidden"><label class="f">เลือกรายการ (1 รายการ) <b>*</b></label><div id="items"></div></div>
       <label class="f">รายละเอียด/สาเหตุการแจ้งซ่อม <span id="detReq" class="hidden"><b>*</b></span></label><textarea id="detail" placeholder="เช่น เครื่องพิมพ์ห้อง 6201 กระดาษติด เปิดไม่ติด"></textarea>
       <label class="f">รูปประกอบ (ไม่เกิน 3 รูป)</label><div class="photos" id="photos"></div>
+      <label class="urg"><input type="checkbox" id="urgent"><span><b>⚡ งานด่วนที่สุด</b> — ช่างรับงานภายใน ${INIT.urgentHours || 4} ชั่วโมง (เวลาทำการ 08:00–17:00 น.)<br><span class="small">ใช้เฉพาะงานที่ทำงานต่อไม่ได้เลย เช่น ระบบทั้งห้อง/ทั้งหน่วยงานใช้ไม่ได้ มีสอบหรือประชุมสำคัญ · แอดมินปรับเป็นงานปกติได้ถ้าไม่ด่วนจริง</span></span></label>
+      <div id="urgentBox" class="hidden"><label class="f">เหตุผลที่ด่วน <b>*</b></label><textarea id="urgentWhy" placeholder="เช่น ห้องสอบ 6201 เปิดคอมไม่ได้ สอบเริ่ม 13:00"></textarea></div>
     </div>
     <div class="card"><h2><span class="n">4</span>ลงชื่อผู้แจ้ง <b style="color:var(--bad)">*</b></h2>
       <div class="sig" id="sig"></div>
@@ -419,11 +474,32 @@ function pageForm() {
   const FLAG = {}; L.groups.forEach(g => g.items.forEach(it => { FLAG[it.id] = it; }));
   const needCard = () => [...st.items].some(i => FLAG[i] && FLAG[i].card);
   const needDet = () => [...st.items].some(i => FLAG[i] && FLAG[i].needDetail);
-  app.querySelectorAll('.chk input').forEach(cb => cb.onchange = () => {
-    cb.checked ? st.items.add(cb.value) : st.items.delete(cb.value);
-    $('#cardBox').classList.toggle('hidden', !needCard());
-    $('#detReq').classList.toggle('hidden', !needDet());
+  const keepCard = { name: '', no: '' };
+  // ① เลือกประเภทก่อน → ② แสดงเฉพาะรายการของประเภทนั้น (จัดกลุ่มตามหัวข้อในฟอร์ม FM-PPM-2-01) เลือกได้ 1 รายการ
+  const drawItems = key => {
+    const cats = formCats(L), known = cats.map(c => c.key).filter(k => k !== '_other');
+    const inCat = it => key === '_other' ? (!it.cat || known.indexOf(it.cat) < 0) : it.cat === key;
+    const cn = $('#card_name'), cno = $('#card_no'); if (cn) { keepCard.name = cn.value; keepCard.no = cno.value; }
+    $('#items').innerHTML = L.groups.filter(g => g.items.some(inCat)).map(g => `<div class="grp"><div class="gh"><span class="gn">${g.no}.</span><span>${esc(g.name)}</span></div>
+      ${g.items.filter(inCat).map(it => `<label class="chk"><input type="radio" name="item" value="${it.id}"${st.items.has(it.id) ? ' checked' : ''}><span>${esc(it.name)}</span></label>`).join('')}
+      ${g.items.some(it => it.card) ? `<div class="cardBox hidden"><label class="f">ชื่อ-นามสกุล (เจ้าของบัตร) <b>*</b></label><input type="text" id="card_name" value="${esc(keepCard.name)}">
+        <label class="f">เลขหลังบัตรบุคลากร/บัตรจอดรถ</label><input type="text" id="card_no" value="${esc(keepCard.no)}"></div>` : ''}</div>`).join('')
+      || '<div class="muted small">ยังไม่มีรายการในประเภทนี้</div>';
+    $('#itemsBox').classList.remove('hidden');
+    const sync = () => {
+      app.querySelectorAll('.cardBox').forEach(b => b.classList.toggle('hidden', !needCard()));
+      $('#detReq').classList.toggle('hidden', !needDet());
+    };
+    app.querySelectorAll('#items input[type=radio]').forEach(rb => rb.onchange = () => { st.items = new Set([rb.value]); sync(); });
+    sync();
+  };
+  app.querySelectorAll('#cats .catb').forEach(b => b.onclick = () => {
+    if (st.cat !== b.dataset.c) st.items = new Set();          // เปลี่ยนประเภท = ล้างรายการที่เลือกไว้
+    st.cat = b.dataset.c;
+    app.querySelectorAll('#cats .catb').forEach(x => x.classList.toggle('on', x === b));
+    drawItems(st.cat);
   });
+  $('#urgent').onchange = () => { $('#urgentBox').classList.toggle('hidden', !$('#urgent').checked); app.querySelector('.urg').classList.toggle('on', $('#urgent').checked); };
   const photos = photoPicker($('#photos'), 3);
   const sig = signaturePad($('#sig'));
   const reqId = Math.random().toString(36).slice(2) + Date.now();
@@ -431,18 +507,19 @@ function pageForm() {
   $('#submit').onclick = async () => {
     const v = id => $('#' + id).value.trim();
     const d = { reqId, reporter_name: v('reporter_name'), department: v('department'), phone: v('phone'), building: st.building,
-      floor: v('floor'), room: v('room'), item_ids: [...st.items], detail: v('detail'), card_name: v('card_name'), card_no: v('card_no'),
+      floor: v('floor'), room: v('room'), item_ids: [...st.items], detail: v('detail'), card_name: $('#card_name') ? v('card_name') : '', card_no: $('#card_no') ? v('card_no') : '',
+      priority: $('#urgent') && $('#urgent').checked ? 'urgent' : 'normal', urgent_reason: $('#urgentWhy') ? v('urgentWhy') : '',
       photos: photos.list, pdpa: true, signature: sig.isEmpty() ? '' : sig.toDataURL() };
     const miss = !d.reporter_name ? 'ชื่อผู้แจ้ง' : !d.department ? 'ภาควิชา/หน่วยงาน' : !d.phone ? 'หมายเลขติดต่อกลับ' : !d.building ? 'อาคาร'
-      : !d.item_ids.length ? 'รายการที่ต้องการแจ้งซ่อม' : (needDet() && !d.detail) ? 'รายละเอียด/สาเหตุ' : (needCard() && !d.card_name) ? 'ชื่อเจ้าของบัตร'
+      : !st.cat ? 'ประเภทของปัญหา' : !d.item_ids.length ? 'รายการที่ต้องการแจ้งซ่อม' : (d.priority === 'urgent' && !d.urgent_reason) ? 'เหตุผลที่ด่วน' : (needDet() && !d.detail) ? 'รายละเอียด/สาเหตุ' : (needCard() && !d.card_name) ? 'ชื่อเจ้าของบัตร'
       : !d.signature ? 'ลายเซ็น' : '';
     if (miss) return toast('กรุณากรอก: ' + miss);
     LS.set('reporter', { building: d.building, floor: d.floor, room: d.room });
     const r = await run(() => api('submit', d));
     refresh('mine', 'staff'); CACHE.drop('ov');
-    try { if (!MOCK && liff.isInClient()) await liff.sendMessages([{ type: 'text', text: 'แจ้งซ่อม #' + r.no }]); } catch (e) { /* ไม่ได้เปิดจากแชต */ }
+    try { if (!MOCK && liff.isInClient()) await liff.sendMessages([{ type: 'text', text: 'แจ้งซ่อม ' + (r.code || '#' + r.no) }]); } catch (e) { /* ไม่ได้เปิดจากแชต */ }
     app.innerHTML = topBar('ส่งแจ้งซ่อมแล้ว') + `<div class="wrap center"><div class="done-ic">✓</div>
-      <h2 style="margin:0">เลขรับแจ้ง #${r.no}</h2><p class="muted">กำหนดแล้วเสร็จ ${esc(r.due || '')}<br>เจ้าหน้าที่จะแจ้งนัดหมายและสถานะทาง LINE</p>
+      <h2 style="margin:0">เลขใบงาน ${esc(r.code || '#' + r.no)}</h2>${r.urgent ? `<p><span class="urgb">🚨 งานด่วน</span></p><p class="muted">แจ้งช่างทุกคนแล้ว จะมีช่างรับงานภายใน ${esc(r.take_by || '')}<br>กำหนดแล้วเสร็จ ${esc(r.due || '')}</p>` : `<p class="muted">กำหนดแล้วเสร็จ ${esc(r.due || '')}<br>เจ้าหน้าที่จะแจ้งนัดหมายและสถานะทาง LINE</p>`}
       <button class="btn" onclick="closeApp()">ปิด</button><div style="height:10px"></div>
       <button class="btn sec" onclick="go('ticket','${r.no}')">ดูใบแจ้งซ่อม</button></div>`;
   };
@@ -456,26 +533,37 @@ async function pageMine() {
     $('#list').innerHTML = r.tickets.length ? r.tickets.map(t => tkCard(t)).join('') : '<div class="empty">ยังไม่มีรายการแจ้งซ่อม</div>';
   });
 }
+/** เลขใบงานสำหรับแสดงผล (PH6909L001) — ใบเก่าที่ยังไม่มีเลขใช้ #ลำดับ */
+function tcode(t) { return (t && t.code) || '#' + (t ? t.no : ''); }
+function leftTxt(m) { m = Math.abs(m); return m >= 60 ? Math.floor(m / 60) + ' ชม. ' + (m % 60 ? m % 60 + ' นาที' : '') : m + ' นาที'; }
+/** กล่องแดงบอกงานด่วน (แสดงบนใบงานทุกหน้า) */
+function urgentBox(t) {
+  if (!t.urgent) return '';
+  const wait = t.status === 'รอมอบหมาย' && t.urgent_left !== null && t.urgent_left !== undefined;
+  const kpi = t.urgent_iso === 'ทัน' || t.urgent_iso === 'ไม่ทัน' ? ' · รับงาน' + (t.urgent_iso === 'ทัน' ? 'ทันเวลา' : 'ไม่ทันเวลา') : '';
+  return `<div class="note urgn"><b>🚨 งานด่วน</b> — ${wait ? `ต้องมีช่างรับงานภายใน ${esc(t.urgent_due)} ${t.urgent_left < 0 ? '<b>(เกินเวลา ' + leftTxt(t.urgent_left) + ')</b>' : '(เหลือ ' + leftTxt(t.urgent_left) + ' ในเวลาทำการ)'}` : `มีช่างรับงานแล้ว${kpi}`}<br>กำหนดแล้วเสร็จ ${esc(t.due || '-')}${t.urgent_reason ? '<br><span class="small">เหตุผล: ' + esc(t.urgent_reason) + '</span>' : ''}</div>`;
+}
 function tkCard(t, staffView) {
   const action = !staffView && t.status === 'รอตรวจงาน' ? '<span class="badge s-wa">แตะเพื่อตรวจงาน</span>' : !staffView && t.status === 'นัดหมายแล้ว' && !t.acked ? '<span class="badge s-pln">รอคุณรับทราบนัด</span>' : '';
-  return `<a class="tk" href="javascript:void 0" onclick="go('${staffView ? 'job' : 'ticket'}','${t.no}')">
-    <div class="l1"><span class="no">#${t.no}</span>${badge(t.status)}</div>
+  return `<a class="tk${t.urgent && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0 ? ' isurg' : ''}" href="javascript:void 0" onclick="go('${staffView ? 'job' : 'ticket'}','${t.no}')">
+    <div class="l1"><span class="no">${esc(tcode(t))}${t.urgent ? ' <span class="urgb">🚨 ด่วน</span>' : ''}</span>${badge(t.status)}</div>
     <div class="l2">${esc(t.items_text || t.detail)}</div>
     <div class="l3"><span>📍 ${esc(t.building)}${t.room ? ' ห้อง ' + esc(t.room) : ''}</span><span>🗓 ${esc(t.created)}</span>
-    ${staffView ? `<span>👤 ${esc(t.reporter_name)}</span><span>🔧 ${esc(t.assigned_name || 'ยังไม่มอบหมาย')}</span>` : ''}
+    ${staffView ? `<span>👤 ${esc(t.reporter_name)}${/^รอตรวจ/.test(t.reporter_check || '') ? ' <span class="rchk">ยังไม่ยืนยันตัวตน</span>' : ''}</span><span>🔧 ${esc(t.assigned_name || 'ยังไม่มอบหมาย')}</span>` : ''}
     ${staffView && t.asset_code ? '<span>🏷 ' + esc(t.asset_code) + '</span>' : ''}${t.resched ? '<span class="od" style="background:#FFF4E6;color:#A35200">ขอเลื่อนนัด</span>' : ''}
     ${t.pause_reason ? '<span>⏸ ' + esc(t.pause_reason) + '</span>' : ''}${t.rework ? '<span class="od" style="background:#F3F0FF;color:#5F3DC4">งานแก้ ครั้งที่ ' + t.reject_count + '</span>' : ''}
-    ${t.overdue ? '<span class="od">เกินกำหนด</span>' : t.due && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0 ? '<span>กำหนดเสร็จ ' + esc(t.due) + '</span>' : ''}</div>
+    ${t.urgent && t.urgent_left !== null && t.urgent_left !== undefined && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0 ? '<span class="od">' + (t.urgent_left < 0 ? 'เกินเวลารับงานด่วน' : 'ต้องมีช่างรับภายใน ' + esc(t.urgent_hm) + ' น. (เหลือ ' + leftTxt(t.urgent_left) + ')') + '</span>'
+      : t.overdue ? '<span class="od">เกินกำหนด</span>' : t.due && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0 ? '<span>กำหนดเสร็จ ' + esc(t.due) + '</span>' : ''}</div>
     ${action ? '<div style="margin-top:8px">' + action + '</div>' : ''}</a>`;
 }
 
 /* ---------- 3) รายละเอียดใบแจ้งซ่อม (ผู้แจ้ง) ---------- */
 function ticketDetailHtml(t, showTimeline) {
   const dl = rows => '<dl class="kv">' + rows.filter(r => r[1] !== undefined && r[1] !== null && r[1] !== '').map(r => `<dt>${r[0]}</dt><dd>${esc(r[1])}</dd>`).join('') + '</dl>';
-  return `<div class="card"><div class="l1" style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">ใบแจ้งซ่อม #${t.no}</h2>${badge(t.status)}</div><div class="hr"></div>
-    ${dl([['วันที่แจ้ง', t.created], ['ผู้แจ้ง', t.reporter_name], ['หน่วยงาน', t.department], ['โทร', t.phone],
+  return `<div class="card"><div class="l1" style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">ใบแจ้งซ่อม ${esc(tcode(t))}</h2>${badge(t.status)}</div><div class="hr"></div>
+    ${urgentBox(t)}${/^รอตรวจ/.test(t.reporter_check || '') ? `<div class="note warn">⚠ ผู้แจ้งยังไม่ยืนยันตัวตน (${esc(t.reporter_check.replace(/^รอตรวจ:\s*/, ''))})${INIT.me.role === 'admin' ? ' · <a href="javascript:void 0" onclick="go(\'verify\')">ตรวจสิทธิ์ผู้แจ้ง</a>' : ''}</div>` : ''}${dl([['วันที่แจ้ง', t.created], ['ผู้แจ้ง', t.reporter_name], ['หน่วยงาน', t.department], ['โทร', t.phone],
       ['สถานที่', [t.building, t.floor ? 'ชั้น ' + t.floor : '', t.room ? 'ห้อง ' + t.room : ''].filter(Boolean).join(' ')],
-      ['รายการ', t.items_text], ['รายละเอียด', t.detail], ['เจ้าของบัตร', t.card_name], ['เลขบัตร', t.card_no], ['ประเภท', t.category], ['กำหนดเสร็จ', t.due]])}
+      ['รายการ', t.items_text], ['รายละเอียด', t.detail], ['เจ้าของบัตร', t.card_name], ['เลขบัตร', t.card_no], ['ประเภท', t.category], ['กำหนดเสร็จ', t.urgent ? '' : t.due], ['ประวัติความเร่งด่วน', t.urgent_note]])}
     ${t.photos && t.photos.length ? '<label class="f">รูปประกอบ</label>' + imgsHtml(t.no, t.photos) : ''}</div>
     ${t.assigned_name ? `<div class="card"><h2>การดำเนินงาน</h2>${dl([['ช่าง', t.assigned_name], ['นัดเข้าทำ', t.appoint], ['ผลประเมิน', t.plan ? t.plan + (t.plan_days ? ' ภายใน ' + t.plan_days + ' วัน' : '') : ''],
       ['หมายเหตุ', t.plan_note], ['ผู้แจ้งรับทราบ', t.ack], ['สาเหตุที่พบ', t.cause], ['การแก้ไข', t.solution], ['คำแนะนำ', t.advice], ['วันที่เสร็จ', t.done], ['วันพักงาน', t.pause_days ? t.pause_days + ' วัน (ไม่นับ KPI)' : ''], ['ISO งานใหม่', t.iso], ['ISO งานแก้', t.rework_iso]])}
@@ -510,11 +598,11 @@ function nowText(t) {
 function stepperHtml(t) {
   const i = stepIndex(t), warn = ['พักงาน', 'ส่งกลับแก้ไข', 'ยกเลิก'].indexOf(t.status) >= 0;
   const now = nowText(t);
-  return `<div class="card"><div class="l1" style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">ใบแจ้งซ่อม #${t.no}</h2>${badge(t.status)}</div>
-    <div class="hr"></div>
+  return `<div class="card"><div class="l1" style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0">ใบแจ้งซ่อม ${esc(tcode(t))}</h2>${badge(t.status)}</div>
+    <div class="hr"></div>${urgentBox(t)}
     <div class="stp">${STEPS.map((x, n) => `<div class="s${n <= i ? ' on' : ''}${n === i ? ' cur' : ''}${n === i && warn ? ' warn' : ''}"><i>${n < i ? '✓' : n + 1}</i>${x.label}</div>`).join('')}</div>
     <div class="nowbox"><b>${esc(now[0])}</b>${now[1] ? '<span class="small">' + esc(now[1]) + '</span>' : ''}</div>
-    ${t.due && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0 ? `<div class="hint">กำหนดแล้วเสร็จ ${esc(t.due)}${t.overdue ? ' (เกินกำหนด)' : ''}</div>` : ''}</div>`;
+    ${t.due && !t.urgent && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0 ? `<div class="hint">กำหนดแล้วเสร็จ ${esc(t.due)}${t.overdue ? ' (เกินกำหนด)' : ''}</div>` : ''}</div>`;
 }
 /** หน้าสำหรับผู้แจ้ง: เห็นสถานะ ข้อมูลที่แจ้ง และผลตรวจรับ (ไม่ต้องเห็นประวัติหลังบ้าน) */
 function reporterViewHtml(t) {
@@ -531,7 +619,7 @@ function reporterViewHtml(t) {
       ${t.pdf_url ? `<a class="btn sec" style="text-align:center;text-decoration:none;display:block" href="${t.pdf_url}" target="_blank">📄 เปิดใบแจ้งซ่อม PDF</a>` : ''}</div>` : '');
 }
 async function pageTicket(no) {
-  app.innerHTML = topBar('ติดตามงาน #' + no, 'mine') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div><div class="bar hidden" id="bar"><div class="in" id="barIn"></div></div>';
+  app.innerHTML = topBar('ติดตามงาน', 'mine') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div><div class="bar hidden" id="bar"><div class="in" id="barIn"></div></div>';
   await swr('t' + no, () => api('getTicket', { no }), r => {
     const t = r.ticket;
     $('#d').innerHTML = r.isReporter && !r.canWork ? reporterViewHtml(t) : ticketDetailHtml(t, true);
@@ -550,7 +638,7 @@ async function pageTicket(no) {
 function askReschedule(t) {
   const today = new Date(Date.now() + 7 * 36e5).toISOString().slice(0, 10);
   app.insertAdjacentHTML('beforeend', `<div class="sheet" id="rsSheet"><div class="sbox">
-    <h2>ขอเลื่อนนัด #${t.no}</h2>
+    <h2>ขอเลื่อนนัด ${esc(tcode(t))}</h2>
     <div class="hint">นัดเดิม ${esc(t.appoint || '-')} · เลือกวัน-เวลาที่คุณสะดวก ช่างจะยืนยันกลับมาอีกครั้ง</div>
     <div class="row"><div><label class="f">วันที่สะดวก <b>*</b></label><input type="date" id="rsD" min="${today}" value="${esc(t.resched_iso || t.appoint_iso || today)}"></div>
     <div><label class="f">เวลา <b>*</b></label><input type="time" id="rsT" value="${esc(t.resched_time || t.appoint_time || '09:00')}"></div></div>
@@ -574,7 +662,7 @@ function refresh() { Array.prototype.forEach.call(arguments, k => { try { localS
 /* ---------- 4) ตรวจรับงาน + ลายเซ็น ---------- */
 async function pageAccept(no) {
   const onsite = new URL(location.href).searchParams.get('onsite') === '1';
-  app.innerHTML = topBar('ตรวจงาน #' + no, onsite ? 'staff' : 'mine') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div>';
+  app.innerHTML = topBar('ตรวจงาน', onsite ? 'staff' : 'mine') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div>';
   let drawn = '';
   await swr('t' + no, () => api('getTicket', { no }), r => {
     const sig = [r.ticket.status, r.ticket.cause, r.ticket.solution, (r.ticket.after_photos || []).join()].join('|');
@@ -593,7 +681,7 @@ function drawAccept(r, no, onsite) {
       ${t.after_photos && t.after_photos.length ? '<label class="f">รูปหลังดำเนินการ</label>' + imgsHtml(t.no, t.after_photos) : ''}</div>
     <div class="card"><h2>ภาควิชา/หน่วยงาน พิจารณาแล้ว เห็นว่างานที่ได้รับมอบหมาย</h2>
       <div class="seg"><button type="button" class="on" data-r="pass">✓ ผ่าน</button><button type="button" data-r="fail">✎ แก้ไข</button></div>
-      <div id="rsBox" class="hidden"><label class="f">สิ่งที่ต้องแก้ไข <b>*</b></label><textarea id="reason" placeholder="ระบุสิ่งที่ยังไม่เรียบร้อย ช่างจะแก้ไขภายใน ${INIT.slaDays} วัน"></textarea></div>
+      <div id="rsBox" class="hidden"><label class="f">สิ่งที่ต้องแก้ไข <b>*</b></label><textarea id="reason" placeholder="ระบุสิ่งที่ยังไม่เรียบร้อย ช่างจะแก้ไขภายใน ${INIT.slaDays} วันทำการ"></textarea></div>
       <label class="f" style="margin-top:14px">ผู้รับบริการประเมินผู้ปฏิบัติงาน <b>*</b></label>
       <div class="rate">${ratings.map(x => `<button type="button" data-v="${x[0]}"><b>${x[0]}</b>${x[1]}</button>`).join('')}</div></div>
     <div class="card"><h2>ลงนาม</h2><label class="f">ชื่อผู้ลงนาม (ผู้แจ้ง/ผู้อยู่หน้างาน) <b>*</b></label>
@@ -613,9 +701,9 @@ function drawAccept(r, no, onsite) {
     if (miss) return toast('กรุณากรอก: ' + miss);
     await run(() => api('accept', d));
     refresh('t' + no, 'mine', 'staff'); CACHE.drop('ov');
-    try { if (!onsite && !MOCK && liff.isInClient()) await liff.sendMessages([{ type: 'text', text: 'ตรวจงาน #' + no }]); } catch (e) {}
-    app.innerHTML = topBar('บันทึกผลตรวจงานแล้ว') + `<div class="wrap center"><div class="done-ic">✓</div><h2 style="margin:0">#${no} ${st.result === 'pass' ? 'ผ่าน · ปิดงานเรียบร้อย' : 'ส่งกลับให้ช่างแก้ไขแล้ว'}</h2>
-      <p class="muted">${st.result === 'pass' ? 'ระบบจัดทำใบแจ้งซ่อมฉบับลงนาม (PDF) แล้ว ขอบคุณที่ใช้บริการ' : 'ช่างได้รับแจ้งแล้ว และจะแก้ไขภายใน ' + INIT.slaDays + ' วัน'}</p>
+    try { if (!onsite && !MOCK && liff.isInClient()) await liff.sendMessages([{ type: 'text', text: 'ตรวจงาน ' + tcode(t) }]); } catch (e) {}
+    app.innerHTML = topBar('บันทึกผลตรวจงานแล้ว') + `<div class="wrap center"><div class="done-ic">✓</div><h2 style="margin:0">${esc(tcode(t))} ${st.result === 'pass' ? 'ผ่าน · ปิดงานเรียบร้อย' : 'ส่งกลับให้ช่างแก้ไขแล้ว'}</h2>
+      <p class="muted">${st.result === 'pass' ? 'ระบบจัดทำใบแจ้งซ่อมฉบับลงนาม (PDF) แล้ว ขอบคุณที่ใช้บริการ' : 'ช่างได้รับแจ้งแล้ว และจะแก้ไขภายใน ' + INIT.slaDays + ' วันทำการ'}</p>
       <button class="btn" onclick="${onsite ? "go('staff')" : 'closeApp()'}">${onsite ? 'กลับหน้างานของฉัน' : 'ปิด'}</button></div>`;
   };
 }
@@ -635,11 +723,14 @@ function drawStaff(r) {
     wait: list.filter(t => t.status === 'รอตรวจงาน'),
     done: list.filter(t => ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) >= 0)
   };
+  // งานด่วนที่ยังไม่เสร็จขึ้นก่อนเสมอ
+  const uf = t => t.urgent && ['รอตรวจงาน', 'ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0 ? 0 : 1;
+  ['todo', 'work'].forEach(k => groups[k].sort((a, b) => uf(a) - uf(b) || (a.urgent_left || 0) - (b.urgent_left || 0) || b.no - a.no));
   const names = { todo: 'รอมอบหมาย', work: 'กำลังดำเนินการ', wait: 'รอตรวจงาน', done: 'ปิดแล้ว' };
   const s = r.stats || { total: 0, open: 0, isoPct: null, avgRating: null };
   $('#s').innerHTML = `${!me.hasSignature ? `<div class="note warn">ยังไม่ได้บันทึกลายเซ็นช่าง (ใช้ในใบแจ้งซ่อม) <a href="javascript:void 0" onclick="go('mysig')"><b>บันทึกตอนนี้</b></a></div>` : ''}
     <div class="stats"><div class="stat"><b>${s.total}</b><span>${me.role === 'admin' ? 'งานเดือนนี้' : 'งานฉันเดือนนี้'}</span></div><div class="stat"><b>${s.open}</b><span>คงค้าง</span></div>
-    <div class="stat"><b>${s.isoPct === null ? '-' : s.isoPct + '%'}</b><span>ทันใน ${INIT.slaDays} วัน</span></div><div class="stat"><b>${s.avgRating === null ? '-' : s.avgRating}</b><span>ความพึงพอใจ</span></div></div>
+    <div class="stat"><b>${s.isoPct === null ? '-' : s.isoPct + '%'}</b><span>ทันใน ${INIT.slaDays} วันทำการ</span></div><div class="stat"><b>${s.avgRating === null ? '-' : s.avgRating}</b><span>ความพึงพอใจ</span></div></div>
     <div class="row" style="margin-bottom:10px"><button class="btn sec sm" onclick="go('cal')">🗓 ตารางงาน</button><button class="btn sec sm" onclick="go('search')">🔍 ค้นประวัติ</button><button class="btn sec sm" onclick="go('kb')">📚 คลังความรู้</button></div>
     <div class="tabs">${Object.keys(names).map(k => `<button class="tab${k === TAB ? ' on' : ''}" data-t="${k}">${names[k]}<i>${groups[k].length}</i></button>`).join('')}</div>
     <div id="tl"></div><div class="center small muted" style="margin:16px 0">${esc(me.name)} · ${me.role === 'admin' ? 'หัวหน้างาน/แอดมิน' : 'ช่าง'} · <a href="javascript:void 0" onclick="go('mysig')">ลายเซ็นของฉัน</a> · <a href="javascript:void 0" onclick="go('mine')">งานที่ฉันแจ้งเอง</a>${me.role === 'admin' ? ' · <a href="javascript:void 0" onclick="go(\'team\')">👥 จัดการเจ้าหน้าที่</a>' : ''}</div>`;
@@ -672,7 +763,7 @@ function pageMySig() {
 }
 
 async function pageJob(no) {
-  app.innerHTML = topBar('งาน #' + no, 'staff') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div>';
+  app.innerHTML = topBar('ใบงาน', 'staff') + '<div class="wrap" id="d"><div class="empty">กำลังโหลด...</div></div>';
   if (!STAFF) STAFF = CACHE.get('staff');
   const my = ++NAV, cached = CACHE.get('t' + no);
   let drawn = '';
@@ -701,13 +792,22 @@ function drawJob(r, s, no) {
       ${s.techs.map(x => `<option value="${x.uid}"${x.uid === t.assigned_uid ? ' selected' : ''}>${esc(x.name)}${x.role === 'admin' ? ' (แอดมิน)' : ''}</option>`).join('')}</select>
       <button class="btn blue sm" id="assign" style="flex:none">${t.assigned_uid ? 'เปลี่ยน' : 'มอบหมาย'}</button></div></div>`);
   }
-  if (!isAdmin && t.status === 'รอมอบหมาย') sections.push('<div class="card"><button class="btn blue" id="take">รับงานนี้</button></div>');
+  if (!isAdmin && t.status === 'รอมอบหมาย') sections.push(`<div class="card"><button class="btn ${t.urgent ? 'red' : 'blue'}" id="take">${t.urgent ? '🚨 รับงานด่วนนี้' : 'รับงานนี้'}</button></div>`);
+  // งานด่วน: ไปหน้างานได้ทันที ไม่ต้องนัดหมาย (ปิดงานได้ตั้งแต่สถานะ "มอบหมายแล้ว")
+  const urgentGo = t.urgent && t.status === 'มอบหมายแล้ว';
   const planned = ['นัดหมายแล้ว', 'พักงาน', 'ส่งกลับแก้ไข'].indexOf(t.status) >= 0;
+  if (isAdmin && ['รอมอบหมาย', 'มอบหมายแล้ว', 'นัดหมายแล้ว', 'พักงาน', 'ส่งกลับแก้ไข'].indexOf(t.status) >= 0) {
+    sections.push(`<div class="card fold"><div class="foldh"><h2 style="margin:0">ความเร่งด่วน · ${t.urgent ? '<span class="urgb">🚨 ด่วน</span>' : 'ปกติ'}</h2><button class="btn sec sm" id="prioT" style="flex:none">${t.urgent ? 'ปรับเป็นงานปกติ' : 'ปรับเป็นงานด่วน'}</button></div>
+      <div class="foldb hidden" id="prioB"><label class="f">เหตุผล <b>*</b></label><input type="text" id="prioR" placeholder="${t.urgent ? 'เช่น ไม่กระทบการเรียนการสอน รอนัดตามปกติได้' : 'เช่น กระทบห้องสอบ / ระบบทั้งชั้น'}">
+      <div style="height:10px"></div><button class="btn ${t.urgent ? 'sec' : 'red'}" id="prioOk">${t.urgent ? 'ยืนยัน ปรับเป็นงานปกติ (แจ้งผู้แจ้ง)' : 'ยืนยัน ปรับเป็นงานด่วน · เริ่มนับ ' + (INIT.urgentHours || 4) + ' ชม.'}</button>
+      <div class="hint">${t.urgent ? 'ผู้แจ้งจะได้รับข้อความแจ้งเหตุผล · กำหนดเสร็จยังเป็น ' + INIT.slaDays + ' วันทำการเหมือนเดิม' : (t.assigned_uid ? 'มีช่างรับงานแล้ว — ใบงานจะขึ้นเป็นงานด่วน (ไม่วัด KPI การรับงาน)' : 'ต้องมีช่างรับงานภายใน ' + (INIT.urgentHours || 4) + ' ชั่วโมงทำการนับจากตอนกดยืนยัน ระบบแจ้งช่างทุกคนทันที')}</div></div></div>`);
+  }
   if (t.resched) {
     sections.push(`<div class="note warn"><b>ผู้แจ้งขอเลื่อนนัด</b><br>สะดวก ${esc(t.resched_when)}${t.resched_note ? ' · ' + esc(t.resched_note) : ''}<br>
       นัดเดิม ${esc(t.appoint || '-')} — แก้วันนัดด้านล่างแล้วกดบันทึก ระบบจะแจ้งผู้แจ้งให้อัตโนมัติ</div>`);
   }
-  if (can && (t.status === 'มอบหมายแล้ว' || planned)) {
+  if (urgentGo && can) sections.push('<div class="note urgn"><b>งานด่วน:</b> เข้าหน้างานได้ทันที ไม่ต้องนัดหมาย · ปิดงานได้ที่ขั้นซ่อมบำรุงด้านล่าง</div>');
+  if (can && ((t.status === 'มอบหมายแล้ว' && !t.urgent) || planned)) {
     sections.push(`<div class="card${planned ? ' fold' : ''}" id="planCard">
       ${planned ? `<div class="foldh"><h2 style="margin:0">นัดหมายแล้ว · ${esc(t.appoint || '')}</h2><button class="btn sec sm" id="editPlan" style="flex:none">${t.resched ? 'ยืนยันนัดใหม่' : 'แก้ไขนัดหมาย'}</button></div><div class="foldb${t.resched ? '' : ' hidden'}">` : '<h2>ขั้นที่ 1 · นัดหมาย</h2>'}
       <div class="row"><div><label class="f">นัดเข้าทำวันที่ <b>*</b></label><input type="date" id="appoint" value="${esc(t.resched_iso || t.appoint_iso || '')}"></div>
@@ -728,14 +828,14 @@ function drawJob(r, s, no) {
     sections.push(`<div class="card"><h2>⏸ พักงานอยู่ (หยุดนับเวลา KPI)</h2><div class="note warn">เหตุผล: ${esc(t.pause_reason)} · ตั้งแต่ ${esc(t.paused)}</div>
       <button class="btn blue" id="resume">▶ ทำงานต่อ</button><div class="hint">วันที่พักจะถูกบวกเข้าไปในกำหนดเสร็จให้อัตโนมัติ</div></div>`);
   }
-  if (can && ['นัดหมายแล้ว', 'ส่งกลับแก้ไข'].indexOf(t.status) >= 0) {
+  if (can && (['นัดหมายแล้ว', 'ส่งกลับแก้ไข'].indexOf(t.status) >= 0 || urgentGo)) {
     sections.push(`<div class="card"><h2>พักงาน (รออะไหล่ / บริษัทภายนอก)</h2>
       <label class="f">เหตุผล <b>*</b></label>${optSel('pr', O.pause, '')}
       <div style="height:10px"></div><button class="btn sec" id="pause">⏸ พักงาน · หยุดนับเวลา</button>
       <div class="hint">ผู้แจ้งจะได้รับแจ้งเหตุผลทาง LINE · ระหว่างพักไม่นับเป็นวันทำงานใน KPI</div></div>`);
   }
-  if (can && ['นัดหมายแล้ว', 'พักงาน', 'ส่งกลับแก้ไข'].indexOf(t.status) >= 0) {
-    sections.push(`<div class="card"><h2>${t.rework ? 'ปิดงานแก้ (ครั้งที่ ' + t.reject_count + ')' : 'ขั้นที่ 2 · ซ่อมบำรุง / ปิดงาน'}</h2>
+  if (can && (['นัดหมายแล้ว', 'พักงาน', 'ส่งกลับแก้ไข'].indexOf(t.status) >= 0 || urgentGo)) {
+    sections.push(`<div class="card"><h2>${t.rework ? 'ปิดงานแก้ (ครั้งที่ ' + t.reject_count + ')' : urgentGo ? '🚨 ซ่อมบำรุง / ปิดงานด่วน' : 'ขั้นที่ 2 · ซ่อมบำรุง / ปิดงาน'}</h2>
       ${t.status === 'ส่งกลับแก้ไข' ? `<div class="note warn">ผู้แจ้งขอให้แก้ไข: ${esc(t.accept_reason)} · ต้องแก้เสร็จภายใน ${esc(t.due)}</div>` : ''}
       <label class="f">สาเหตุที่พบ <b>*</b></label>${optSel('cause', O.cause, t.cause || '')}
       <label class="f">แนวทางการแก้ไข <b>*</b></label>${optSel('sol', O.solution, t.solution || '')}
@@ -757,7 +857,7 @@ function drawJob(r, s, no) {
       <div style="height:8px"></div><button class="btn sec" id="resend">ส่งคำขอตรวจงานทาง LINE อีกครั้ง</button></div>`);
   }
   if (!can && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0) sections.push('<div class="note">งานนี้เป็นของ' + esc(t.assigned_name || 'ช่างท่านอื่น') + ' · คุณเปิดดูได้อย่างเดียว</div>');
-  if (can && t.status === 'มอบหมายแล้ว') sections.push('<div class="note">บันทึกนัดหมายก่อน แล้วระบบจะเปิดขั้นตอนซ่อมบำรุง (พักงาน/ปิดงาน) ให้ในหน้านี้</div>');
+  if (can && t.status === 'มอบหมายแล้ว' && !t.urgent) sections.push('<div class="note">บันทึกนัดหมายก่อน แล้วระบบจะเปิดขั้นตอนซ่อมบำรุง (พักงาน/ปิดงาน) ให้ในหน้านี้</div>');
   if (t.pdf_url) sections.push(`<div class="card"><a class="btn sec" style="text-align:center;text-decoration:none" href="${t.pdf_url}" target="_blank">📄 เปิดใบแจ้งซ่อม PDF</a></div>`);
   if (['รอตรวจงาน', 'ดำเนินการเสร็จสิ้น'].indexOf(t.status) >= 0 && t.solution) sections.push(`<div class="card"><button class="btn sec" onclick="go('kbe',null,{from:'${t.no}'})">📚 บันทึกวิธีแก้นี้ลงคลังความรู้</button><div class="hint">ระบบดึงอาการ สาเหตุ วิธีแก้ และรูปหลังซ่อมมาเป็นร่างให้ แก้ไขก่อนบันทึกได้</div></div>`);
   if (isAdmin && ['ดำเนินการเสร็จสิ้น', 'ยกเลิก'].indexOf(t.status) < 0) sections.push('<div class="center" style="margin:6px 0 18px"><a href="javascript:void 0" id="cxl" class="small" style="color:var(--bad)">ยกเลิกใบแจ้งซ่อมนี้</a></div>');
@@ -773,11 +873,16 @@ function drawJob(r, s, no) {
   on('editPlan', () => { const b = document.querySelector('#planCard .foldb'); if (b) b.classList.toggle('hidden'); });
   on('resume', async () => { const r = await run(() => api('resume', { no })); toast('ทำงานต่อแล้ว · กำหนดเสร็จ ' + r.ticket.due); stale(); pageJob(no); });
   on('take', async () => { await run(() => api('take', { no })); toast('รับงานแล้ว'); stale(); pageJob(no); });
+  on('prioT', () => { $('#prioB').classList.toggle('hidden'); const r2 = $('#prioR'); if (r2) r2.focus(); });
+  on('prioOk', async () => {
+    const reason = $('#prioR').value.trim(); if (reason.length < 3) return toast('กรุณาระบุเหตุผล');
+    await run(() => api('priority', { no, urgent: !t.urgent, reason })); toast(t.urgent ? 'ปรับเป็นงานปกติแล้ว' : 'ปรับเป็นงานด่วนแล้ว'); stale(); pageJob(no);
+  });
   const planSel = $('#plan'); if (planSel) planSel.onchange = () => $('#daysBox').classList.toggle('hidden', !['wait', 'external'].includes(planSel.value));
   on('savePlan', async () => {
     const d = { no, appoint_date: $('#appoint').value, appoint_time: $('#appointT').value, plan_note: $('#pnote').value.trim() };
     if (!d.appoint_date || !d.appoint_time) return toast('กรุณาระบุวันนัดและเวลา');
-    if (clashNo) return toast('เวลานี้ชนกับนัดงาน #' + clashNo + ' กรุณาเลือกเวลาอื่น');
+    if (clashNo) return toast('เวลานี้ชนกับนัดงาน ' + clashNo + ' กรุณาเลือกเวลาอื่น');
     await run(() => api('plan', d)); toast('บันทึกและแจ้งผู้แจ้งแล้ว'); stale(); refresh('sc'); pageJob(no);
   });
   // เตือนเมื่อนัดชนกับงานอื่นของช่างคนเดียวกัน (ดูจากรายการงานที่โหลดมาแล้ว)
@@ -791,12 +896,12 @@ function drawJob(r, s, no) {
       && x.appoint_iso === dt && ['นัดหมายแล้ว', 'พักงาน', 'ส่งกลับแก้ไข'].indexOf(x.status) >= 0 && toMin(x.appoint_time) !== null)
       .sort((a, b) => toMin(a.appoint_time) - toMin(b.appoint_time));
     const hit = tm === null ? null : booked.find(x => Math.abs(toMin(x.appoint_time) - tm) < gap);
-    clashNo = hit ? hit.no : null;
+    clashNo = hit ? tcode(hit) : null;
     if (!booked.length) { box.className = 'hidden'; box.innerHTML = ''; }
     else {
       box.className = hit ? 'note warn' : 'note';
-      box.innerHTML = (hit ? `<b>⚠ ชนกับนัดงาน #${hit.no} เวลา ${esc(hit.appoint_time)} น.</b><br>นัดของช่างคนเดียวกันต้องห่างกันอย่างน้อย ${gap} นาที กรุณาเลือกเวลาอื่น<br>` : '') +
-        'นัดที่มีแล้ววันนี้: ' + booked.map(x => `${esc(x.appoint_time)} น. (#${x.no})`).join(' · ');
+      box.innerHTML = (hit ? `<b>⚠ ชนกับนัดงาน ${esc(tcode(hit))} เวลา ${esc(hit.appoint_time)} น.</b><br>นัดของช่างคนเดียวกันต้องห่างกันอย่างน้อย ${gap} นาที กรุณาเลือกเวลาอื่น<br>` : '') +
+        'นัดที่มีแล้ววันนี้: ' + booked.map(x => `${esc(x.appoint_time)} น. (${esc(tcode(x))})`).join(' · ');
     }
     if (btn) { btn.disabled = !!hit; btn.style.opacity = hit ? .5 : 1; }
   };
@@ -821,6 +926,175 @@ function drawJob(r, s, no) {
   on('cxl', async () => { const reason = prompt('เหตุผลการยกเลิก'); if (!reason) return; await run(() => api('cancel', { no, reason })); toast('ยกเลิกแล้ว'); stale(); pageJob(no); });
 }
 
+
+/* ---------- 6) ตรวจสิทธิ์ผู้แจ้ง (แอดมิน) + นำเข้า/ส่งออกรายชื่อบุคลากร ---------- */
+let VF_TAB = 'wait';
+async function pageVerify() {
+  if (INIT.me.role !== 'admin') return pageStaff();
+  const m = new URL(location.href).searchParams.get('m') || '';
+  app.innerHTML = topBar('ตรวจสิทธิ์ผู้แจ้ง', 'dash') + '<div class="wrap" id="vf"><div class="empty">กำลังโหลด...</div></div>';
+  await swr('vf' + m, () => api('verifyList', { month: m }), r => drawVerify(r));
+}
+function drawVerify(r) {
+  const cnt = k => r.users.filter(x => k === 'all' || x.st === k).length;
+  const ST = { wait: ['รอตรวจ', 's-new'], ok: ['อนุญาตแล้ว', 's-ok'], no: ['ไม่มีสิทธิ์', 's-rej'], verified: ['ยืนยันแล้ว', 's-cls'] };
+  const card = x => `<div class="card vf ${x.st}" data-uid="${esc(x.uid)}">
+    <div class="who"><div><b>${esc(x.name)}</b><div class="small muted">${esc(x.dept || '-')} · 📞 ${esc(x.phone || '-')} · LINE: ${esc(x.line || '-')}</div></div>
+      <span class="badge ${ST[x.st][1]}">${ST[x.st][0]}</span></div>
+    <div>${x.why.map(w => `<span class="why${/บัญชีอื่น/.test(w) ? ' bad' : ''}">${esc(w)}</span>`).join('')}</div>
+    ${x.sug ? `<div class="sug">🔎 ในรายชื่อบุคลากร: <b>${esc(x.sug.name)}</b>${x.sug.dept ? ' · ' + esc(x.sug.dept) : ''}${x.sug.d ? ' <span class="muted">(สะกดต่าง ' + x.sug.d + ' ตัว)</span>' : ''}</div>` : ''}
+    <div class="small muted">ลงทะเบียน ${esc(x.reg || '-')} · แจ้งซ่อมเดือนนี้ ${x.tks.length} ใบ</div>
+    ${x.tks.length ? `<div class="tks">${x.tks.map(t => `<a href="javascript:void 0" class="${t.unverified ? 'u' : ''}" onclick="go('job','${t.no}')">${esc(t.code)}</a>`).join('')}</div>` : ''}
+    ${x.st === 'wait' ? `<div class="acts"><button class="btn sm" data-ok="${esc(x.uid)}">${x.sug ? '✓ ใช่คนนี้ · อนุญาต' : '✓ อนุญาต (บุคลากร)'}</button><button class="btn sec sm" style="color:var(--bad)" data-no="${esc(x.uid)}">✕ ไม่มีสิทธิ์</button></div>
+      <div class="hidden" data-nobox="${esc(x.uid)}"><label class="f">เหตุผล <b>*</b></label><input type="text" placeholder="เช่น นิสิต / บุคคลภายนอก / แอบอ้างชื่อ">
+      <div style="height:8px"></div><button class="btn bad sm" data-nook="${esc(x.uid)}">ยืนยัน ไม่มีสิทธิ์ (แจ้งซ่อมไม่ได้อีก)</button></div>`
+      : x.st === 'verified' ? '' : `<div class="hint" style="margin-top:8px">${x.st === 'ok' ? '✓' : '✕'} ${esc(x.by)}${x.note ? ' — ' + esc(x.note) : ''} · <a href="javascript:void 0" data-reset="${esc(x.uid)}">เปลี่ยนผล</a></div>`}
+  </div>`;
+  const R = r.roster || {};
+  $('#vf').innerHTML = `
+    <div class="dhead"><select id="vfm">${r.months.map(x => `<option value="${x.ym}"${x.ym === r.ym ? ' selected' : ''}>${esc(x.label)}</option>`).join('')}</select>
+      <button class="btn sec sm" id="vfx">⬇ ดาวน์โหลดรายการเดือนนี้ (Excel)</button></div>
+    ${!r.enabled ? `<div class="note warn">ยังไม่ได้เปิดตรวจสิทธิ์ — ${R.n ? 'ปิดไว้ที่ Settings: VERIFY_ENABLED' : 'นำเข้ารายชื่อบุคลากรก่อน ระบบจึงจะเริ่มตรวจ'}</div>` : ''}
+    <div class="vf-sum"><div class="stat ok"><b>${r.sum.verified}</b><span>ยืนยันแล้ว (ชื่อ+หน่วยงานตรง)</span></div><div class="stat warn"><b>${r.sum.wait}</b><span>รอตรวจ</span></div>
+      <div class="stat"><b>${r.sum.ok}</b><span>แอดมินอนุญาต</span></div><div class="stat bad"><b>${r.sum.no}</b><span>ไม่มีสิทธิ์</span></div></div>
+    <div class="card imp"><div style="flex:1;min-width:220px"><b>รายชื่อบุคลากร ${R.n ? '(' + R.n.toLocaleString() + ' คน)' : '(ยังไม่มี)'}</b>
+      <div class="small muted">${R.at ? 'นำเข้าล่าสุด ' + esc(R.at) + (R.by ? ' โดย ' + esc(R.by) : '') + (R.file ? ' · ไฟล์ ' + esc(R.file) : '') + (R.excluded ? ' · ตัดออก ' + R.excluded + ' แถว' : '') : 'นำเข้าไฟล์จากโปรแกรม HIP หรือไฟล์ที่กรอกตามฟอร์มของระบบ'}</div></div>
+      <div class="row2"><button class="btn blue sm" id="vfi">📥 นำเข้าไฟล์ .xls</button><button class="btn sec sm" id="vfe">📄 ส่งออกฟอร์ม</button></div>
+      <input type="file" id="vff" accept=".xls,.xlsx" class="hidden"></div>
+    <div class="tabs">${[['wait', 'รอตรวจ'], ['ok', 'อนุญาตแล้ว'], ['no', 'ไม่มีสิทธิ์'], ['all', 'ทั้งหมด']].map(([k, l]) => `<button class="tab${k === VF_TAB ? ' on' : ''}" data-t="${k}">${l}<i>${cnt(k)}</i></button>`).join('')}</div>
+    <div class="vf-list" id="vfl"></div>
+    <div class="hint" style="margin:14px 0">"อนุญาต" = ผูกบัญชี LINE นี้กับรายชื่อบุคลากร ครั้งต่อไปไม่ต้องตรวจอีก · "ไม่มีสิทธิ์" = บัญชีนี้แจ้งซ่อมไม่ได้อีก (ประวัติเดิมยังอยู่) · กด "เปลี่ยนผล" เพื่อให้ระบบตรวจใหม่</div>`;
+  const drawList = () => {
+    const l = r.users.filter(x => VF_TAB === 'all' || x.st === VF_TAB);
+    $('#vfl').innerHTML = l.length ? l.map(card).join('') : '<div class="empty">ไม่มีรายการ 👍</div>';
+    bind();
+  };
+  const done = () => { CACHE.drop('vf'); CACHE.drop('ov'); pageVerify(); };
+  const bind = () => {
+    app.querySelectorAll('[data-ok]').forEach(b => b.onclick = async () => { await run(() => api('verifyDecide', { uid: b.dataset.ok, decision: 'approve', bind: true })); toast('อนุญาตแล้ว'); done(); });
+    app.querySelectorAll('[data-no]').forEach(b => b.onclick = () => { const bx = app.querySelector(`[data-nobox="${b.dataset.no}"]`); bx.classList.toggle('hidden'); const i = bx.querySelector('input'); if (i) i.focus(); });
+    app.querySelectorAll('[data-nook]').forEach(b => b.onclick = async () => {
+      const note = app.querySelector(`[data-nobox="${b.dataset.nook}"] input`).value.trim();
+      if (note.length < 3) return toast('กรุณาระบุเหตุผล');
+      await run(() => api('verifyDecide', { uid: b.dataset.nook, decision: 'deny', note })); toast('บันทึกแล้ว — บัญชีนี้แจ้งซ่อมไม่ได้'); done();
+    });
+    app.querySelectorAll('[data-reset]').forEach(b => b.onclick = () => confirmSheet('เปลี่ยนผลการตรวจ?', 'ล้างผลที่ตัดสินไว้ แล้วให้ระบบตรวจกับรายชื่อบุคลากรใหม่', 'ล้างผล', async () => { await run(() => api('verifyReset', { uid: b.dataset.reset })); done(); }));
+  };
+  app.querySelectorAll('.tab').forEach(b => b.onclick = () => { VF_TAB = b.dataset.t; app.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); drawList(); });
+  drawList();
+  $('#vfm').onchange = e => go('verify', null, { m: e.target.value });
+  $('#vfx').onclick = () => exportVerifyMonth(r);
+  $('#vfe').onclick = () => exportRosterForm();
+  $('#vfi').onclick = () => $('#vff').click();
+  $('#vff').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importRoster(f, r.exclude); };
+}
+
+/** โหลดไลบรารีอ่าน/เขียน Excel เมื่อจำเป็นเท่านั้น */
+let XLSX_P = null;
+function loadXlsx() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  // ใช้ SheetJS รุ่นล่าสุดจากเว็บผู้พัฒนา (แก้ช่องโหว่ของรุ่นเก่าใน npm แล้ว) ถ้าโหลดไม่ได้ใช้สำรอง
+  const SRC = ['https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js', 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'];
+  const load = i => new Promise((ok, bad) => {
+    const s = document.createElement('script'); s.src = SRC[i];
+    s.onload = () => ok(window.XLSX); s.onerror = () => { s.remove(); if (i + 1 < SRC.length) load(i + 1).then(ok, bad); else bad(new Error('โหลดตัวอ่านไฟล์ Excel ไม่ได้ ตรวจอินเทอร์เน็ตแล้วลองใหม่')); };
+    document.head.appendChild(s);
+  });
+  return XLSX_P || (XLSX_P = load(0).catch(e => { XLSX_P = null; throw e; }));
+}
+/** บันทึกไฟล์ให้ผู้ใช้ (ตั้งชื่อไฟล์ภาษาไทยได้แน่นอน) */
+function saveBook(X, wb, name, type) {
+  const buf = X.write(wb, { bookType: type, type: 'array' });
+  const blob = new Blob([buf], { type: type === 'biff8' ? 'application/vnd.ms-excel' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+}
+const ROSTER_HEAD = ['ลำดับ', 'ชื่อ-นามสกุล', 'หน่วยงาน/ภาควิชา', 'หมายเหตุ'];
+/** ส่งออกฟอร์มเปล่า (.xls) สำหรับกรอกรายชื่อบุคลากร แล้วนำเข้ากลับ */
+async function exportRosterForm() {
+  const X = await run(loadXlsx);
+  const ws = X.utils.aoa_to_sheet([ROSTER_HEAD]);
+  ws['!cols'] = [{ wch: 7 }, { wch: 32 }, { wch: 40 }, { wch: 24 }];
+  const how = X.utils.aoa_to_sheet([
+    ['วิธีกรอกฟอร์มรายชื่อบุคลากร'], [''],
+    ['1. กรอกในแผ่นงาน "รายชื่อบุคลากร" 1 แถวต่อ 1 คน (อย่าแก้หัวตาราง)'],
+    ['2. ชื่อ-นามสกุล: ใส่คำนำหน้าหรือไม่ก็ได้ เช่น นางสาวสุธิมา กิตติ'],
+    ['3. หน่วยงาน/ภาควิชา: ใส่ชื่อหน่วยงานที่สังกัด เช่น ภาควิชาสรีรวิทยา, งานอาคารสถานที่, รพส.มก. (ผู้แจ้งต้องกรอกหน่วยงานตรงกับช่องนี้)'],
+    ['4. บันทึกเป็น .xls หรือ .xlsx แล้วกด "นำเข้าไฟล์ .xls" ในหน้าตรวจสิทธิ์ผู้แจ้ง'],
+    ['5. การนำเข้าจะแทนที่รายชื่อเดิมทั้งหมด — ใส่ทุกคนที่มีสิทธิ์แจ้งซ่อม (บุคลากรเท่านั้น ไม่รวมนิสิต)'],
+    [''], ['ตัวอย่าง'], ROSTER_HEAD, [1, 'นางสาวสุธิมา กิตติ', 'ภาควิชาสรีรวิทยา', ''], [2, 'นายสมชาย ใจดี', 'งานอาคารสถานที่', 'ย้ายมาจากงานพัสดุ']
+  ]);
+  how['!cols'] = [{ wch: 90 }];
+  const wb = X.utils.book_new();
+  X.utils.book_append_sheet(wb, ws, 'รายชื่อบุคลากร');
+  X.utils.book_append_sheet(wb, how, 'วิธีกรอก');
+  saveBook(X, wb, 'roster-form.xls', 'biff8');
+  toast('ดาวน์โหลดฟอร์มแล้ว (ถ้าเปิดใน LINE แล้วไม่ดาวน์โหลด ให้เปิดหน้านี้บนคอมพิวเตอร์)', 4000);
+}
+/** รายการผู้แจ้งที่ยังไม่ยืนยันตัวตนของเดือน → Excel */
+async function exportVerifyMonth(r) {
+  const X = await run(loadXlsx);
+  const head = ['เลขใบงาน', 'วันที่แจ้ง', 'ผู้แจ้ง', 'หน่วยงาน', 'โทร', 'รายการ', 'สถานะงาน', 'ผลตรวจตอนแจ้ง', 'ผลตรวจล่าสุด'];
+  const rows = r.rows.map(x => [x.code, x.created, x.reporter, x.dept, x.phone, x.items, x.status, x.check, x.now]);
+  const ws = X.utils.aoa_to_sheet([head].concat(rows.length ? rows : [['ไม่มีรายการ']]));
+  ws['!cols'] = [{ wch: 13 }, { wch: 16 }, { wch: 24 }, { wch: 24 }, { wch: 13 }, { wch: 30 }, { wch: 16 }, { wch: 40 }, { wch: 14 }];
+  const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'ผู้แจ้งยังไม่ยืนยันตัวตน');
+  saveBook(X, wb, 'verify-' + r.ym + '.xlsx', 'xlsx');
+}
+/** อ่านไฟล์ (HIP หรือฟอร์มของระบบ) → แสดงสรุปให้เลือกกลุ่ม → ส่งเข้าระบบ */
+async function importRoster(file, exclude) {
+  const X = await run(loadXlsx);
+  let aoa;
+  try {
+    const wb = X.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+    const sh = wb.Sheets['รายชื่อบุคลากร'] || wb.Sheets[wb.SheetNames[0]];
+    aoa = X.utils.sheet_to_json(sh, { header: 1, raw: false, defval: '' });
+  } catch (e) { return toast('อ่านไฟล์ไม่ได้: ' + (e.message || e), 5000); }
+  const hi = aoa.findIndex(row => row.some(c => /ชื่อผู้ใช้|ชื่อ-นามสกุล/.test(String(c))));
+  if (hi < 0) return toast('ไม่พบหัวตาราง "ชื่อ-นามสกุล" หรือ "ชื่อผู้ใช้" — ใช้ไฟล์จาก HIP หรือฟอร์มของระบบเท่านั้น', 5000);
+  const H = aoa[hi].map(c => String(c).trim()), col = re => H.findIndex(h => re.test(h));
+  const hip = col(/ชื่อผู้ใช้/) >= 0;
+  const cN = hip ? col(/ชื่อผู้ใช้/) : col(/ชื่อ-นามสกุล/), cD = hip ? col(/^แผนก/) : col(/หน่วยงาน/), cE = col(/วันหมดอายุ/);
+  const exRe = exclude ? new RegExp(exclude) : null, today = new Date().toISOString().slice(0, 10);
+  const LABEL = /ห้อง|หอพัก|ชั้น\s*\d|สำรอง|ทดสอบ|test|แขก|guest|visitor|ชั่วคราว|\d{3,}/i;
+  // แผนกใน HIP เป็นลำดับชั้น "5.ภาควิชา...\5.3ภาควิชาพยาธิวิทยา" → "ภาควิชา... › ภาควิชาพยาธิวิทยา" (ผู้แจ้งกรอกชั้นไหนก็ตรง)
+  const cleanDept = d => String(d || '').split('\\').map(x => x.replace(/^[\d.]+\s*/, '').trim()).filter(Boolean).join(' › ');
+  const topDept = d => { const t = String(d || '').split('\\')[0].trim(); return t ? t.replace(/^[\d.]+\s*/, '') : '(ไม่ระบุแผนก)'; };
+  const ok = [], out = { 'ห้องพัก/บัตรสำรอง/ไม่ใช่ชื่อคน': 0, 'นิสิต/ผู้มาติดต่อ': 0, 'บัตรหมดอายุ': 0 };
+  aoa.slice(hi + 1).forEach(row => {
+    const name = String(row[cN] || '').trim(); if (!name) return;
+    const dept = cD >= 0 ? String(row[cD] || '').trim() : '';
+    // ไฟล์ HIP มีแถวที่ไม่ใช่คน (ห้องพักนิสิต บัตรสำรอง) ปนอยู่ — ฟอร์มของระบบเชื่อตามที่กรอก
+    if (!/[ก-๙a-z]/i.test(name) || (hip && (LABEL.test(name) || !/\s/.test(name.replace(/^(นางสาว|นาง|นาย)/, ''))))) { out['ห้องพัก/บัตรสำรอง/ไม่ใช่ชื่อคน']++; return; }
+    if (exRe && exRe.test(dept)) { out['นิสิต/ผู้มาติดต่อ']++; return; }
+    if (cE >= 0) { const e = row[cE] instanceof Date ? row[cE].toISOString().slice(0, 10) : String(row[cE]).slice(0, 10); if (/^\d{4}-\d{2}-\d{2}$/.test(e) && e < today) { out['บัตรหมดอายุ']++; return; } }
+    ok.push({ name, dept: hip ? cleanDept(dept) : dept, grp: hip ? topDept(dept) : (dept || '(ไม่ระบุหน่วยงาน)') });
+  });
+  const total = aoa.length - hi - 1, groups = {};
+  ok.forEach(x => { groups[x.grp] = (groups[x.grp] || 0) + 1; });
+  const gk = Object.keys(groups).sort((a, b) => groups[b] - groups[a]);
+  const exTxt = Object.keys(out).filter(k => out[k]).map(k => k + ' ' + out[k]).join(' · ');
+  app.insertAdjacentHTML('beforeend', `<div class="sheet" id="impSheet"><div class="sbox" style="max-height:88vh;overflow:auto">
+    <h2>นำเข้ารายชื่อบุคลากร</h2>
+    <div class="hint">ไฟล์ ${esc(file.name)} · ${hip ? 'รูปแบบโปรแกรม HIP' : 'ฟอร์มของระบบ'} · ${total.toLocaleString()} แถว${exTxt ? '<br>ตัดออกอัตโนมัติ: ' + esc(exTxt) : ''}</div>
+    <label class="f" style="margin-top:12px">เลือกกลุ่มที่นำเข้าเป็นบุคลากร</label>
+    ${gk.map(g => `<label class="grpchk"><input type="checkbox" data-g="${esc(g)}" checked><span>${esc(g)}</span><b>${groups[g].toLocaleString()}</b></label>`).join('')}
+    ${groups['(ไม่ระบุแผนก)'] ? '<div class="hint">"ไม่ระบุแผนก" อาจมีนิสิตหรืออดีตบุคลากรปนอยู่ และระบบเทียบได้แค่ชื่อ (ไม่มีหน่วยงานให้เทียบ) — ถ้าไม่แน่ใจให้เอาออก แล้วค่อยอนุญาตรายคน</div>' : ''}
+    <div class="note warn" style="margin-top:12px">รายชื่อชุดนี้จะ <b>แทนที่</b> รายชื่อเดิมทั้งหมด (การผูกบัญชี LINE เดิมยังอยู่)</div>
+    <div class="row"><button class="btn sec" id="impX">ยกเลิก</button><button class="btn" id="impOk">นำเข้า <span id="impN"></span> คน</button></div></div></div>`);
+  const sel = () => { const on = new Set([...app.querySelectorAll('#impSheet [data-g]')].filter(c => c.checked).map(c => c.dataset.g)); return ok.filter(x => on.has(x.grp)); };
+  const upd = () => { $('#impN').textContent = sel().length.toLocaleString(); };
+  app.querySelectorAll('#impSheet [data-g]').forEach(c => c.onchange = upd); upd();
+  const close = () => { const e = $('#impSheet'); if (e) e.remove(); };
+  $('#impX').onclick = close;
+  $('#impOk').onclick = async () => {
+    const rows = sel().map(x => ({ name: x.name, dept: x.dept }));
+    if (!rows.length) return toast('ยังไม่ได้เลือกกลุ่มใด');
+    const res = await run(() => api('rosterImport', { rows, file: file.name, source: hip ? 'HIP' : 'ฟอร์ม', total, excluded: total - rows.length }));
+    close(); toast('นำเข้า ' + res.n.toLocaleString() + ' คนแล้ว · ผู้แจ้งยืนยันแล้ว ' + res.verified + ' · รอตรวจ ' + res.pending, 5000);
+    CACHE.drop('vf'); CACHE.drop('ov'); pageVerify();
+  };
+}
 
 /* ---------- 5.1) ค้นประวัติซ่อม ---------- */
 async function pageSearch() {
@@ -856,7 +1130,7 @@ function drawCal(r, from) {
   const techOpts = r.isAdmin ? `<select id="ft"><option value="">ช่างทุกคน</option>${r.techs.map(x => `<option value="${x.uid}"${x.uid === CAL_TECH ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select>` : '<div style="flex:1"></div>';
   const keep = j => !CAL_TECH || j.tech_uid === CAL_TECH;
   const jobHtml = j => `<div class="slot"><div class="tm">${esc(j.time)}</div><div class="bd">
-      <a href="javascript:void 0" onclick="go('job','${j.no}')"><b>#${j.no}</b> ${esc(j.items || '')}</a>
+      <a href="javascript:void 0" onclick="go('job','${j.no}')"><b>${esc(j.code || '#' + j.no)}</b>${j.urgent ? ' 🚨' : ''} ${esc(j.items || '')}</a>
       <div class="t2">🔧 ${esc(j.tech)} · 📍 ${esc(j.place)} · 👤 ${esc(j.reporter)}</div>
       ${j.resched ? '<div class="t2" style="color:var(--warn-ink,#A35200)">⚠ ผู้แจ้งขอเลื่อนเป็น ' + esc(j.resched_when) + '</div>' : ''}
       </div><div>${badge(j.status)}</div></div>`;
@@ -1055,7 +1329,7 @@ async function copyText(t, okMsg) {
 
 /* ---------- 6) ภาพรวม (Dashboard) ---------- */
 const CAT_COL = { 'CCTV & Access Control': '#7048E8', 'Network': '#F08C00', 'Software': '#2F9E44', 'Hardware': '#1C7ED6' };
-let DASH_FILTER = 'overdue';
+let DASH_FILTER = 'urgent';
 async function pageDash() {
   if (INIT.me.role === 'user') return pageRegister();
   if (INIT.me.role !== 'admin') return pageStaff();     // ภาพรวมทั้งหน่วยงาน = เฉพาะหัวหน้างาน
@@ -1073,20 +1347,23 @@ function drawDash(o) {
     return `<span class="${good === null ? 'nt' : good ? 'up' : 'dn'}">${df > 0 ? '▲' : '▼'} ${Math.abs(df)}${unit || ''} จากเดือนก่อน</span>`;
   };
   const f = o.follow;
-  const fdefs = [['overdue', 'เกินกำหนด', '#FFE3E3', '#C92A2A'], ['dueToday', 'ครบกำหนดวันนี้', '#FFF4E6', '#A35200'], ['unassigned', 'รอมอบหมาย', '#E7F1FB', '#1864AB'],
+  const fdefs = [['urgent', '🚨 งานด่วน', '#E03131', '#FFFFFF'], ['overdue', 'เกินกำหนด', '#FFE3E3', '#C92A2A'], ['dueToday', 'ครบกำหนดวันนี้', '#FFF4E6', '#A35200'], ['unassigned', 'รอมอบหมาย', '#E7F1FB', '#1864AB'],
     ['waitAccept', 'รอผู้แจ้งตรวจงาน', '#E6FCF5', '#087F5B'], ['rejected', 'ส่งกลับแก้ไข', '#F3F0FF', '#5F3DC4'], ['paused', 'พักงาน', '#FFF9DB', '#8F6A00']];
-  if (!f[DASH_FILTER].length) { const firstNon = fdefs.find(x => f[x[0]].length); if (firstNon) DASH_FILTER = firstNon[0]; }
+  f.urgent = f.urgent || [];
+  if (!f[DASH_FILTER] || !f[DASH_FILTER].length) { const firstNon = fdefs.find(x => f[x[0]].length); if (firstNon) DASH_FILTER = firstNon[0]; }
   const maxCat = Math.max(1, ...o.categories.map(c => Math.max(c.n, c.prev)));
   const maxB = Math.max(1, ...o.buildings.map(b => b.n));
   const maxI = Math.max(1, ...o.topItems.map(b => b.n));
   $('#d').innerHTML = `
     <div class="dhead"><select id="mon">${o.months.map(m => `<option value="${m.ym}"${m.ym === o.ym ? ' selected' : ''}>${esc(m.label)}</option>`).join('')}</select>
-      <button class="btn sec sm" onclick="go('cal')">🗓 ตารางงาน</button><button class="btn sec sm" onclick="go('search')">🔍 ค้นประวัติ</button><button class="btn sec sm" onclick="go('team')">👥 เจ้าหน้าที่</button><button class="btn blue sm" onclick="go('staff')">จัดการงานทั้งหมด →</button></div>
+      <button class="btn sec sm" onclick="go('cal')">🗓 ตารางงาน</button><button class="btn sec sm" onclick="go('search')">🔍 ค้นประวัติ</button><button class="btn sec sm" onclick="go('team')">👥 เจ้าหน้าที่</button><button class="btn sec sm" onclick="go('verify')">🛡 ตรวจสิทธิ์ผู้แจ้ง${o.verify && o.verify.pending ? ' <span class="urgb" style="background:#E67700">' + o.verify.pending + '</span>' : ''}</button><button class="btn blue sm" onclick="go('staff')">จัดการงานทั้งหมด →</button></div>
+    ${o.verify && (o.verify.pending || o.verify.monthUsers) ? `<div class="dash-vf"><div style="flex:1"><b>🛡 ผู้แจ้งที่ยังไม่ยืนยันตัวตน เดือนนี้ ${o.verify.monthUsers} คน · ${o.verify.monthTickets} ใบ</b><div class="small muted">รอตรวจ ${o.verify.pending} คน — อนุญาต หรือ ระบุว่าไม่มีสิทธิ์ (เช่น นิสิต/บุคคลภายนอก)</div></div><button class="btn sm" onclick="go('verify')">ตรวจเลย →</button></div>` : ''}
     <div class="kpis">
       <div class="kpi"><div class="lb">งานแจ้งซ่อมเดือนนี้</div><div class="v">${s.total}</div><div class="dl">${delta(s.total, p.total, 0, ' งาน')}</div></div>
       <div class="kpi"><div class="lb">ปิดแล้ว / คงค้าง</div><div class="v">${s.closed} <span style="font-size:18px;color:var(--muted)">/ ${s.open}</span></div><div class="dl">${delta(s.open, p.open, -1, ' งานค้าง')}</div></div>
-      <div class="kpi"><div class="lb">KPI งานใหม่ ทันใน ${o.slaDays} วัน (เป้า ${o.kpiTarget}%)</div><div class="v" style="color:${s.isoPct === null ? 'inherit' : s.isoPct >= o.kpiTarget ? '#2B8A3E' : 'var(--bad)'}">${s.isoPct === null ? '-' : s.isoPct + '%'}</div><div class="dl">${delta(s.isoPct, p.isoPct, 1, '%')}</div></div>
-      <div class="kpi"><div class="lb">KPI งานแก้ ทันใน ${o.slaDays} วัน</div><div class="v" style="color:${s.reworkPct === null ? 'inherit' : s.reworkPct >= o.kpiTarget ? '#2B8A3E' : 'var(--bad)'}">${s.reworkPct === null ? '-' : s.reworkPct + '%'}</div><div class="dl"><span class="nt">ส่งกลับแก้ไข ${s.rejected} ใบ · พักงาน ${s.paused} ใบ</span></div></div>
+      <div class="kpi"><div class="lb">KPI งานใหม่ ทันใน ${o.slaDays} วันทำการ (เป้า ${o.kpiTarget}%)</div><div class="v" style="color:${s.isoPct === null ? 'inherit' : s.isoPct >= o.kpiTarget ? '#2B8A3E' : 'var(--bad)'}">${s.isoPct === null ? '-' : s.isoPct + '%'}</div><div class="dl">${delta(s.isoPct, p.isoPct, 1, '%')}</div></div>
+      <div class="kpi"><div class="lb">KPI งานแก้ ทันใน ${o.slaDays} วันทำการ</div><div class="v" style="color:${s.reworkPct === null ? 'inherit' : s.reworkPct >= o.kpiTarget ? '#2B8A3E' : 'var(--bad)'}">${s.reworkPct === null ? '-' : s.reworkPct + '%'}</div><div class="dl"><span class="nt">ส่งกลับแก้ไข ${s.rejected} ใบ · พักงาน ${s.paused} ใบ</span></div></div>
+      <div class="kpi"><div class="lb">KPI รับงานด่วน ภายใน ${o.urgentHours || 4} ชม.</div><div class="v" style="color:${s.urgentPct == null ? 'inherit' : s.urgentPct >= o.kpiTarget ? '#2B8A3E' : 'var(--bad)'}">${s.urgentPct == null ? '-' : s.urgentPct + '%'}</div><div class="dl"><span class="nt">ด่วน ${s.urgent || 0} ใบ · ปรับลดเป็นปกติ ${s.urgentDown || 0} ใบ</span></div></div>
       <div class="kpi"><div class="lb">ความพึงพอใจเฉลี่ย (เต็ม 5)</div><div class="v">${s.avgRating === null ? '-' : s.avgRating}</div><div class="dl">${delta(s.avgRating, p.avgRating, 1)}</div></div>
     </div>
     <div class="dgrid">
@@ -1098,8 +1375,8 @@ function drawDash(o) {
       <div class="card"><h2>ตามประเภทงาน</h2>${o.categories.map(c => `<div class="hbar"><span>${esc(c.name)}</span><div class="tr"><div class="fl" style="width:${c.n * 100 / maxCat}%;background:${c.color || CAT_COL[c.name] || '#868E96'}"></div></div><span class="n">${c.n}</span></div>`).join('')}
         <div class="hint">เดือนก่อน: ${o.categories.map(c => esc(c.name.split(' ')[0]) + ' ' + c.prev).join(' · ')}</div></div>
       <div class="card"><h2>ตามอาคาร</h2>${o.buildings.map(b => `<div class="hbar"><span>${esc(b.name.replace('อาคาร', ''))}</span><div class="tr"><div class="fl" style="width:${b.n * 100 / maxB}%;background:#495057"></div></div><span class="n">${b.n}</span></div>`).join('')}</div>
-      <div class="card"><h2>ตามช่างผู้ปฏิบัติงาน</h2><table class="tt"><tr><th>ช่าง</th><th>งานค้าง<br>ตอนนี้</th><th>งาน<br>เดือนนี้</th><th>ปิด<br>แล้ว</th><th>ทัน<br>${o.slaDays} วัน</th><th>ส่งกลับ<br>แก้ไข</th><th>คะแนน</th></tr>
-        ${o.techs.map(t => `<tr><td>${esc(t.name)}</td><td style="font-weight:700;color:${t.openNow > 3 ? 'var(--bad)' : 'inherit'}">${t.openNow}</td><td>${t.month}</td><td>${t.closed}</td><td>${t.isoPct === null ? '-' : t.isoPct + '%'}</td><td>${t.rework || 0}</td><td>${t.rating === null ? '-' : t.rating}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">ยังไม่มีช่าง</td></tr>'}</table></div>
+      <div class="card"><h2>ตามช่างผู้ปฏิบัติงาน</h2><table class="tt"><tr><th>ช่าง</th><th>งานค้าง<br>ตอนนี้</th><th>งาน<br>เดือนนี้</th><th>ปิด<br>แล้ว</th><th>ทัน<br>${o.slaDays} วันทำการ</th><th>รับงานด่วน<br>${o.urgentHours || 4} ชม.</th><th>ส่งกลับ<br>แก้ไข</th><th>คะแนน</th></tr>
+        ${o.techs.map(t => `<tr><td>${esc(t.name)}</td><td style="font-weight:700;color:${t.openNow > 3 ? 'var(--bad)' : 'inherit'}">${t.openNow}</td><td>${t.month}</td><td>${t.closed}</td><td>${t.isoPct === null ? '-' : t.isoPct + '%'}</td><td>${t.urgentPct == null ? '-' : t.urgentPct + '%'}</td><td>${t.rework || 0}</td><td>${t.rating === null ? '-' : t.rating}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">ยังไม่มีช่าง</td></tr>'}</table></div>
       <div class="card"><h2>รายการที่แจ้งบ่อย</h2>${o.topItems.map(b => `<div class="hbar"><span>${esc(b.name)}</span><div class="tr"><div class="fl" style="width:${b.n * 100 / maxI}%;background:#06A94D"></div></div><span class="n">${b.n}</span></div>`).join('') || '<div class="muted small">ยังไม่มีข้อมูล</div>'}</div>
       <div class="card wide"><h2>รายงานประจำเดือน</h2>
         ${o.isAdmin ? `<button class="btn sm" id="genRep">สร้างรายงาน ${esc(o.label)} (ข้อมูลถึงวันนี้)</button><div class="hint">ระบบสร้างรายงานให้อัตโนมัติทุกวันที่ 1 อยู่แล้ว ปุ่มนี้ใช้เมื่อต้องการตัวเลขระหว่างเดือน</div>` : ''}
@@ -1107,8 +1384,8 @@ function drawDash(o) {
     </div><div style="height:16px"></div>`;
   const drawF = () => {
     const l = f[DASH_FILTER];
-    $('#fl').innerHTML = l.length ? l.slice(0, 12).map(t => `<a href="javascript:void 0" onclick="go('job','${t.no}')"><span><b>#${t.no}</b> ${esc(t.items_text || t.detail)} · ${esc(t.building.replace('อาคาร', ''))}</span>
-      <span>${DASH_FILTER === 'paused' ? '⏸ ' + esc(t.pause_reason) + ' · ' + t.pausedDays + ' วัน' : DASH_FILTER === 'waitAccept' ? 'รอ ' + t.waitDays + ' วัน' : esc(t.assigned_name || 'ยังไม่มอบหมาย')} · ${DASH_FILTER === 'overdue' ? 'แจ้งมา ' + t.ageDays + ' วัน' : 'กำหนด ' + esc(t.due)}</span></a>`).join('') + (l.length > 12 ? `<div class="hint">และอีก ${l.length - 12} รายการ</div>` : '')
+    $('#fl').innerHTML = l.length ? l.slice(0, 12).map(t => `<a href="javascript:void 0" onclick="go('job','${t.no}')"><span><b>${esc(tcode(t))}</b>${t.urgent ? ' 🚨' : ''} ${esc(t.items_text || t.detail)} · ${esc(t.building.replace('อาคาร', ''))}</span>
+      <span>${DASH_FILTER === 'paused' ? '⏸ ' + esc(t.pause_reason) + ' · ' + t.pausedDays + ' วัน' : DASH_FILTER === 'waitAccept' ? 'รอ ' + t.waitDays + ' วัน' : DASH_FILTER === 'urgent' ? esc(t.assigned_name || 'ยังไม่มีผู้รับ') : esc(t.assigned_name || 'ยังไม่มอบหมาย')} · ${DASH_FILTER === 'urgent' ? (t.urgent_left == null ? 'กำหนดเสร็จ ' + esc(t.due) : t.urgent_left < 0 ? '⛔ เกินเวลารับงาน ' + leftTxt(t.urgent_left) : 'ต้องรับงานใน ' + leftTxt(t.urgent_left)) : DASH_FILTER === 'overdue' ? 'แจ้งมา ' + t.ageDays + ' วัน' : 'กำหนด ' + esc(t.due)}</span></a>`).join('') + (l.length > 12 ? `<div class="hint">และอีก ${l.length - 12} รายการ</div>` : '')
       : '<div class="muted small" style="padding:8px 0">ไม่มีรายการ 👍</div>';
   };
   app.querySelectorAll('.fchip').forEach(b => b.onclick = () => { DASH_FILTER = b.dataset.f; app.querySelectorAll('.fchip').forEach(x => x.classList.toggle('on', x === b)); drawF(); });
