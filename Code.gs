@@ -2796,21 +2796,22 @@ function refreshVerify_(u) {
 
 /** รายชื่อหน่วยงานจากรายชื่อบุคลากร (ให้เลือกตอนลงทะเบียน — ไม่ใช่ข้อมูลส่วนบุคคล) */
 function rosterDepts_() {
-  const cache = CacheService.getScriptCache(), hit = cache.get('roster_depts2');
+  const cache = CacheService.getScriptCache(), hit = cache.get('roster_depts3');
   if (hit) return JSON.parse(hit);
   // ทุกระดับของสายงาน เช่น "รพส.มก › แผนกอายุรกรรม › หน่วยหัตถการ" → รพส.มก / แผนกอายุรกรรม / หน่วยหัตถการ (บอกสังกัดไว้ใน p)
   const seen = {}, out = [];
   allRoster_().forEach(r => {
     const segs = str_(r.dept).split(' › ').map(x => x.trim()).filter(Boolean);
+    const ex = x => x.replace(/^ภ\.\s*/, 'ภาควิชา');
     segs.forEach((x, i) => {
-      const v = x.replace(/^ภ\.\s*/, 'ภาควิชา'), p = segs.slice(0, i).join(' › ');
+      const v = ex(x), p = segs.slice(0, i).map(ex).join(' › ');
       if (v.length < 2 || seen[v + '|' + p]) return;
       seen[v + '|' + p] = 1; out.push({ v: v, p: p });
     });
   });
   out.sort((a, b) => (a.p || a.v).localeCompare(b.p || b.v, 'th') || a.v.localeCompare(b.v, 'th'));
   const res = out.slice(0, 600);
-  try { cache.put('roster_depts2', JSON.stringify(res), 21600); } catch (e) { /* ใหญ่เกิน cache */ }
+  try { cache.put('roster_depts3', JSON.stringify(res), 21600); } catch (e) { /* ใหญ่เกิน cache */ }
   return res;
 }
 
@@ -2908,7 +2909,7 @@ function apiVerifyReset_(me, d) {
 
 /* ---------- เพิ่ม / ค้นหา / ลบ รายชื่อบุคลากรทีละคน ---------- */
 function rosterId_(r) { return r.key + '|' + deptNorm_(r.dept); }
-function clearRosterCaches_() { allRoster_._m = null; try { CacheService.getScriptCache().removeAll(['roster_depts', 'roster_depts2']); } catch (e) { /* ignore */ } }
+function clearRosterCaches_() { allRoster_._m = null; try { CacheService.getScriptCache().removeAll(['roster_depts', 'roster_depts2', 'roster_depts3']); } catch (e) { /* ignore */ } }
 
 /** ค้นรายชื่อ (ชื่อ นามสกุล หรือหน่วยงาน) — สำหรับเลือกลบ */
 function apiRosterSearch_(me, d) {

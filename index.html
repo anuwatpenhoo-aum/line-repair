@@ -201,7 +201,10 @@ table.tt td{text-align:center;padding:8px 4px;border-bottom:1px solid var(--line
 .pick{color:var(--ink)}.pick .ph{color:var(--muted)}.pick i{font-style:normal;color:var(--muted)}
 .dpg{font-size:12.5px;font-weight:700;color:var(--muted);padding:12px 4px 4px;position:sticky;top:0;background:var(--card)}
 .dpi{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:10px 6px;font:inherit;font-size:15px;color:var(--ink)}
-.dpi span{display:block;font-size:12px;color:var(--muted)}.dpi.on{background:var(--pri-soft)}
+.dpi{position:relative;padding-right:28px}.dpi span{display:block;font-size:12px;color:var(--muted)}.dpi.on{background:var(--pri-soft)}
+.dpi i{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-style:normal;font-size:22px;color:var(--muted)}
+.dpi.dpsel{background:var(--pri-soft);border-radius:10px;border:0;margin:4px 0}.dpi.dpsel b{color:#036B30}
+.dpc{font-size:13px;margin:10px 0 2px;color:var(--muted)}.dpc a{color:var(--blue)}
 </style>
 <link rel="preconnect" href="https://script.google.com" crossorigin>
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
@@ -399,27 +402,43 @@ function verifyNote(P) {
   if (P.verify === 'denied') return `<div class="note warn" style="margin:12px 0 0;background:var(--bad-soft);color:var(--bad)">${esc(P.deny_text || 'บัญชีนี้ไม่มีสิทธิ์แจ้งซ่อม')}</div>`;
   return `<div class="note warn" style="margin:12px 0 0">ยังไม่ยืนยันตัวตน: ${esc(P.verify_reason || '')}<br><span class="small">แจ้งซ่อมได้ตามปกติ เจ้าหน้าที่จะตรวจสอบภายหลัง · ตรวจชื่อ-นามสกุลและหน่วยงานให้ตรงกับทะเบียนบุคลากร</span></div>`;
 }
-/** เลือกภาควิชา/หน่วยงานจากทะเบียนบุคลากร — ค้นได้ แยกตามสังกัด และพิมพ์เองได้ถ้าไม่พบ */
+/** เลือกภาควิชา/หน่วยงานแบบขั้นบันได: สังกัดใหญ่ → แผนก → หน่วย (ค้นหาได้ และพิมพ์เองได้ถ้าไม่พบ) */
 function deptPicker(depts, cur, onPick) {
+  // สร้างต้นไม้จากรายการ { v: ชื่อหน่วย, p: สายสังกัด "ก › ข" }
+  const node = {}, kids = { '': [] };
+  depts.forEach(x => { const path = x.p ? x.p + ' › ' + x.v : x.v; node[path] = { v: x.v, p: x.p, path }; (kids[x.p] = kids[x.p] || []).push(path); });
+  Object.keys(kids).forEach(k => kids[k].sort((a, b) => node[a].v.localeCompare(node[b].v, 'th')));
+  let at = '';   // สายสังกัดที่กำลังดูอยู่ ('' = ระดับบนสุด)
   app.insertAdjacentHTML('beforeend', `<div class="sheet" id="dpSheet"><div class="sbox" style="height:86vh;display:flex;flex-direction:column">
     <h2 style="margin-bottom:8px">เลือกภาควิชา/หน่วยงาน</h2>
-    <input type="search" id="dpQ" placeholder="🔍 ค้นหา เช่น สรีรวิทยา, อายุรกรรม, พัสดุ" autocomplete="off">
-    <div id="dpL" style="flex:1;overflow:auto;margin:8px -4px 0;padding:0 4px"></div>
+    <input type="search" id="dpQ" placeholder="🔍 หรือพิมพ์ค้นหา เช่น สรีรวิทยา, พัสดุ" autocomplete="off">
+    <div id="dpCrumb" class="dpc"></div>
+    <div id="dpL" style="flex:1;overflow:auto;margin:4px -4px 0;padding:0 4px"></div>
     <div style="border-top:1px solid var(--line);padding-top:10px;margin-top:6px" id="dpOther"><a href="javascript:void 0" id="dpOwn">ไม่พบหน่วยงานของฉัน — พิมพ์เอง</a></div>
     <div class="row" style="margin-top:10px"><button class="btn sec" id="dpX">ยกเลิก</button></div></div></div>`);
   const close = () => { const e = $('#dpSheet'); if (e) e.remove(); };
+  const pick = v => { onPick(v); close(); };
   const norm = t => String(t || '').toLowerCase().replace(/\s+/g, '');
+  const item = (path, sub) => { const n = node[path], more = (kids[path] || []).length;
+    return `<button type="button" class="dpi${n.v === cur ? ' on' : ''}" data-path="${esc(path)}" data-more="${more ? 1 : 0}"><b>${esc(n.v)}</b>${sub && n.p ? `<span>${esc(n.p)}</span>` : more ? `<span>${more} หน่วยย่อย</span>` : ''}${more ? '<i>›</i>' : ''}</button>`; };
+  const bind = () => app.querySelectorAll('#dpL [data-path]').forEach(b => b.onclick = () => {
+    if (b.dataset.more === '1' && !norm($('#dpQ').value)) { at = b.dataset.path; draw(); $('#dpL').scrollTop = 0; } else pick(node[b.dataset.path].v);
+  });
   const draw = () => {
     const q = norm($('#dpQ').value);
-    const l = depts.filter(x => !q || norm(x.v + x.p).indexOf(q) >= 0).slice(0, 200);
-    let last = null, h = '';
-    l.forEach((x, i) => {
-      const top = x.p ? x.p.split(' › ')[0] : x.v;
-      if (top !== last) { h += `<div class="dpg">${esc(top)}</div>`; last = top; }
-      h += `<button type="button" class="dpi${x.v === cur ? ' on' : ''}" data-i="${depts.indexOf(x)}"><b>${esc(x.v)}</b>${x.p && x.p !== top ? `<span>${esc(x.p)}</span>` : ''}</button>`;
-    });
-    $('#dpL').innerHTML = h || '<div class="empty">ไม่พบ — ลองคำอื่น หรือกด "พิมพ์เอง" ด้านล่าง</div>';
-    app.querySelectorAll('#dpL [data-i]').forEach(b => b.onclick = () => { onPick(depts[+b.dataset.i].v); close(); });
+    if (q) {   // ค้นหา: แสดงผลแบบรายการเดียว พร้อมบอกสังกัด
+      $('#dpCrumb').innerHTML = '';
+      const l = Object.keys(node).filter(k => norm(k).indexOf(q) >= 0).slice(0, 150);
+      $('#dpL').innerHTML = l.length ? l.map(k => item(k, true)).join('') : '<div class="empty">ไม่พบ — ลองคำอื่น หรือกด "พิมพ์เอง" ด้านล่าง</div>';
+    } else {
+      const parts = at ? at.split(' › ') : [];
+      $('#dpCrumb').innerHTML = `<a href="javascript:void 0" data-at="">ทั้งหมด</a>` + parts.map((x, i) => ` › <a href="javascript:void 0" data-at="${esc(parts.slice(0, i + 1).join(' › '))}">${esc(x)}</a>`).join('');
+      app.querySelectorAll('#dpCrumb [data-at]').forEach(a => a.onclick = () => { at = a.dataset.at; draw(); });
+      const l = kids[at] || [];
+      $('#dpL').innerHTML = (at ? `<button type="button" class="dpi dpsel" data-self="1"><b>✓ เลือก “${esc(node[at].v)}”</b><span>ถ้าไม่มีหน่วยย่อยของคุณด้านล่าง ให้เลือกระดับนี้</span></button><div class="dpg">หรือเลือกหน่วยย่อย</div>` : '') + l.map(k => item(k)).join('');
+      const self = $('#dpL [data-self]'); if (self) self.onclick = () => pick(node[at].v);
+    }
+    bind();
   };
   $('#dpQ').oninput = draw; draw();
   $('#dpX').onclick = close; $('#dpSheet').onclick = e => { if (e.target.id === 'dpSheet') close(); };
@@ -427,9 +446,8 @@ function deptPicker(depts, cur, onPick) {
     $('#dpOther').innerHTML = `<label class="f">พิมพ์ชื่อหน่วยงาน</label><div class="row"><input type="text" id="dpT" value="${esc($('#dpQ').value)}"><button class="btn sm" id="dpTOk" style="flex:none;width:auto;padding:0 18px">ใช้ชื่อนี้</button></div>
       <div class="hint">ถ้าไม่ตรงกับทะเบียนบุคลากร เจ้าหน้าที่จะตรวจสอบก่อน (ยังแจ้งซ่อมได้)</div>`;
     $('#dpT').focus();
-    $('#dpTOk').onclick = () => { const v = $('#dpT').value.trim(); if (v.length < 2) return toast('กรุณาพิมพ์ชื่อหน่วยงาน'); onPick(v); close(); };
+    $('#dpTOk').onclick = () => { const v = $('#dpT').value.trim(); if (v.length < 2) return toast('กรุณาพิมพ์ชื่อหน่วยงาน'); pick(v); };
   };
-  setTimeout(() => { const q = $('#dpQ'); if (q && window.innerWidth > 700) q.focus(); }, 50);
 }
 function pageReg() {
   const P = INIT.me.profile || {}, first = !INIT.me.profile, L = INIT.lists;
