@@ -933,7 +933,7 @@ function doPost(e) {
     return json_(Object.assign({ ok: true }, handleApi_(body)));
   } catch (err) {
     const msg = String((err && err.message) || err);
-    if (msg !== 'SESSION_EXPIRED' && !/^(กรุณา|ไม่|เฉพาะ|รหัส|งาน|ช่าง|อาคาร|ใบแจ้ง|เลือก|พิมพ์|ขอเลื่อน|บัญชี|เลข)/.test(msg)) logError_(err, 'api ' + body.action);
+    if (msg !== 'SESSION_EXPIRED' && !/^(กรุณา|ไม่|เฉพาะ|รหัส|งาน|ช่าง|อาคาร|ใบแจ้ง|เลือก|พิมพ์|ขอเลื่อน|บัญชี|เลข|มี)/.test(msg)) logError_(err, 'api ' + body.action);
     return json_({ ok: false, error: msg });
   }
 }
@@ -969,6 +969,9 @@ function handleApi_(req) {
     case 'verifyDecide': return apiVerifyDecide_(me, d);
     case 'verifyReset': return apiVerifyReset_(me, d);
     case 'rosterImport': return apiRosterImport_(me, d);
+    case 'rosterSearch': return apiRosterSearch_(me, d);
+    case 'rosterAdd': return apiRosterAdd_(me, d);
+    case 'rosterDelete': return apiRosterDelete_(me, d);
     // เจ้าหน้าที่
     case 'staffTickets': return apiStaffTickets_(me);
     case 'search': return apiSearch_(me, d);
@@ -2858,7 +2861,8 @@ function apiVerifyList_(me, d) {
       items: t.items_text, status: t.status, check: t.reporter_check,
       now: (function (u) { return u ? ({ verified: 'ยืนยันแล้ว', approved: 'แอดมินอนุญาต', denied: 'ไม่มีสิทธิ์', pending: 'รอตรวจ' }[u.verify] || '') : ''; })(userByUid_(t.reporter_uid))
     })),
-    exclude: str_(setting_('ROSTER_EXCLUDE', 'นิสิต|ผู้มาติดต่อ'))
+    exclude: str_(setting_('ROSTER_EXCLUDE', 'นิสิต|ผู้มาติดต่อ')),
+    depts: rosterDepts_()
   };
 }
 
@@ -2888,6 +2892,66 @@ function apiVerifyReset_(me, d) {
   refreshVerify_(u);
   log_('', 'ล้างผลตรวจสิทธิ์ผู้แจ้ง', '', '', me, u.name);
   return { ok: true };
+}
+
+/* ---------- เพิ่ม / ค้นหา / ลบ รายชื่อบุคลากรทีละคน ---------- */
+function rosterId_(r) { return r.key + '|' + deptNorm_(r.dept); }
+function clearRosterCaches_() { allRoster_._m = null; try { CacheService.getScriptCache().remove('roster_depts'); } catch (e) { /* ignore */ } }
+
+/** ค้นรายชื่อ (ชื่อ นามสกุล หรือหน่วยงาน) — สำหรับเลือกลบ */
+function apiRosterSearch_(me, d) {
+  requireAdmin_(me);
+  const q = str_(d.q), k = normName_(q), qd = deptNorm_(q);
+  if (q.length < 2) return { total: allRoster_().length, list: [] };
+  const hit = allRoster_().filter(r => (k && r.key.indexOf(k) >= 0) || (qd.length >= 2 && deptNorm_(r.dept).indexOf(qd) >= 0));
+  return {
+    total: allRoster_().length, found: hit.length,
+    list: hit.slice(0, 60).map(r => ({ id: rosterId_(r), name: r.name, dept: str_(r.dept).split(' › ').pop(), path: r.dept, bound: !!r.bound_uid }))
+  };
+}
+
+/** เพิ่มรายชื่อทีละคน (ไม่เกิน 5 คนต่อครั้ง) */
+function apiRosterAdd_(me, d) {
+  requireAdmin_(me);
+  const people = (d.people || []).slice(0, 5).map(p => ({
+    name: (str_(p.first).replace(NAME_PREFIX_RE, '').trim() + ' ' + str_(p.last).trim()).trim(), dept: clip_(p.dept, 200)
+  }));
+  if (!people.length) throw new Error('กรุณากรอกชื่อ');
+  people.forEach(p => { if (!/\s/.test(p.name)) throw new Error('กรุณากรอกทั้งชื่อและนามสกุล'); });
+  if (!ss_().getSheetByName(SH.ROSTER)) ensureSheet_(SH.ROSTER, ROSTER_FIELDS, '#0B7285');
+  const have = {}; allRoster_().forEach(r => { have[rosterId_(r)] = r; });
+  const now = new Date();
+  people.forEach(p => {
+    const o = { key: normName_(p.name), name: p.name, dept: p.dept, bound_uid: '', bound_at: '', imported_at: now };
+    if (have[rosterId_(o)]) throw new Error('มี "' + p.name + '" หน่วยงานนี้อยู่ในรายชื่อแล้ว');
+    appendObj_(SH.ROSTER, ROSTER_FIELDS, o);
+    have[rosterId_(o)] = o;
+  });
+  clearRosterCaches_();
+  // ผู้แจ้งที่รอตรวจอยู่ อาจผ่านทันทีเมื่อมีชื่อในรายชื่อแล้ว
+  let verified = 0;
+  allUsers_().filter(u => !staffByUid_(u.uid) && (!u.verify || u.verify === 'pending')).forEach(u => { if (refreshVerify_(u).verify === 'verified') verified++; });
+  log_('', 'เพิ่มรายชื่อบุคลากร', '', '', me, people.map(p => p.name + (p.dept ? ' (' + p.dept + ')' : '')).join(', '));
+  return { added: people.length, verified: verified, total: allRoster_().length };
+}
+
+/** ลบรายชื่อหลายคน — ผู้แจ้งที่เคยยืนยันด้วยรายชื่อนั้นจะกลับไปเป็น "รอตรวจ" */
+function apiRosterDelete_(me, d) {
+  requireAdmin_(me);
+  const ids = {}; (d.ids || []).slice(0, 500).forEach(x => { ids[str_(x)] = 1; });
+  const rows = allRoster_().filter(r => ids[rosterId_(r)]);
+  if (!rows.length) throw new Error('ไม่พบรายชื่อที่เลือก');
+  const sh = ss_().getSheetByName(SH.ROSTER);
+  const bound = rows.filter(r => r.bound_uid).map(r => r.bound_uid);
+  rows.map(r => r._row).sort((a, b) => b - a).forEach(n => sh.deleteRow(n));
+  clearRosterCaches_();
+  let back = 0;
+  bound.forEach(uid => {
+    const u = userByUid_(uid);
+    if (u && u.verify === 'verified') { updateObj_(SH.USERS, USER_FIELDS, u._row, { verify: '' }); u.verify = ''; refreshVerify_(u); back++; }
+  });
+  log_('', 'ลบรายชื่อบุคลากร', '', '', me, rows.length + ' คน: ' + rows.slice(0, 20).map(r => r.name).join(', ') + (rows.length > 20 ? ' …' : ''));
+  return { deleted: rows.length, backToPending: back, total: allRoster_().length };
 }
 
 /** นำเข้ารายชื่อบุคลากร (หน้าเว็บอ่านไฟล์ .xls/.xlsx แล้วส่งแถวมา) — แทนที่รายชื่อเดิมทั้งหมด คงการผูกบัญชี LINE เดิมไว้ */

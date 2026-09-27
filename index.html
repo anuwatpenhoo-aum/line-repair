@@ -931,9 +931,8 @@ function drawJob(r, s, no) {
 let VF_TAB = 'wait';
 async function pageVerify() {
   if (INIT.me.role !== 'admin') return pageStaff();
-  const m = new URL(location.href).searchParams.get('m') || '';
   app.innerHTML = topBar('ตรวจสิทธิ์ผู้แจ้ง', 'dash') + '<div class="wrap" id="vf"><div class="empty">กำลังโหลด...</div></div>';
-  await swr('vf' + m, () => api('verifyList', { month: m }), r => drawVerify(r));
+  await swr('vf', () => api('verifyList', {}), r => drawVerify(r));
 }
 function drawVerify(r) {
   const cnt = k => r.users.filter(x => k === 'all' || x.st === k).length;
@@ -952,14 +951,13 @@ function drawVerify(r) {
   </div>`;
   const R = r.roster || {};
   $('#vf').innerHTML = `
-    <div class="dhead"><select id="vfm">${r.months.map(x => `<option value="${x.ym}"${x.ym === r.ym ? ' selected' : ''}>${esc(x.label)}</option>`).join('')}</select>
-      <button class="btn sec sm" id="vfx">⬇ ดาวน์โหลดรายการเดือนนี้ (Excel)</button></div>
     ${!r.enabled ? `<div class="note warn">ยังไม่ได้เปิดตรวจสิทธิ์ — ${R.n ? 'ปิดไว้ที่ Settings: VERIFY_ENABLED' : 'นำเข้ารายชื่อบุคลากรก่อน ระบบจึงจะเริ่มตรวจ'}</div>` : ''}
     <div class="vf-sum"><div class="stat ok"><b>${r.sum.verified}</b><span>ยืนยันแล้ว (ชื่อ+หน่วยงานตรง)</span></div><div class="stat warn"><b>${r.sum.wait}</b><span>รอตรวจ</span></div>
       <div class="stat"><b>${r.sum.ok}</b><span>แอดมินอนุญาต</span></div><div class="stat bad"><b>${r.sum.no}</b><span>ไม่มีสิทธิ์</span></div></div>
     <div class="card imp"><div style="flex:1;min-width:220px"><b>รายชื่อบุคลากร ${R.n ? '(' + R.n.toLocaleString() + ' คน)' : '(ยังไม่มี)'}</b>
       <div class="small muted">${R.at ? 'นำเข้าล่าสุด ' + esc(R.at) + (R.by ? ' โดย ' + esc(R.by) : '') + (R.file ? ' · ไฟล์ ' + esc(R.file) : '') + (R.excluded ? ' · ตัดออก ' + R.excluded + ' แถว' : '') : 'นำเข้าไฟล์จากโปรแกรม HIP หรือไฟล์ที่กรอกตามฟอร์มของระบบ'}</div></div>
-      <div class="row2"><button class="btn blue sm" id="vfi">📥 นำเข้าไฟล์ .xls</button><button class="btn sec sm" id="vfe">📄 ส่งออกฟอร์ม</button></div>
+      <div class="row2"><button class="btn blue sm" id="vfi">📥 นำเข้าไฟล์ .xls</button><button class="btn sec sm" id="vfe">📄 ส่งออกฟอร์ม</button>
+        <button class="btn sec sm" id="vfa">➕ เพิ่มรายชื่อ</button><button class="btn sec sm" id="vfd" style="color:var(--bad)">🗑 ลบรายชื่อ</button></div>
       <input type="file" id="vff" accept=".xls,.xlsx" class="hidden"></div>
     <div class="tabs">${[['wait', 'รอตรวจ'], ['ok', 'อนุญาตแล้ว'], ['no', 'ไม่มีสิทธิ์'], ['all', 'ทั้งหมด']].map(([k, l]) => `<button class="tab${k === VF_TAB ? ' on' : ''}" data-t="${k}">${l}<i>${cnt(k)}</i></button>`).join('')}</div>
     <div class="vf-list" id="vfl"></div>
@@ -982,11 +980,72 @@ function drawVerify(r) {
   };
   app.querySelectorAll('.tab').forEach(b => b.onclick = () => { VF_TAB = b.dataset.t; app.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x === b)); drawList(); });
   drawList();
-  $('#vfm').onchange = e => go('verify', null, { m: e.target.value });
-  $('#vfx').onclick = () => exportVerifyMonth(r);
+  $('#vfa').onclick = () => rosterAddSheet(r.depts || []);
+  $('#vfd').onclick = () => rosterDeleteSheet();
   $('#vfe').onclick = () => exportRosterForm();
   $('#vfi').onclick = () => $('#vff').click();
   $('#vff').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importRoster(f, r.exclude); };
+}
+
+/** เพิ่มรายชื่อบุคลากรทีละ 1–2 คน */
+function rosterAddSheet(depts) {
+  const row = n => `<div class="card" style="margin:10px 0 0;padding:12px;background:#F8F9FA" data-p="${n}">
+    <div class="small muted" style="margin-bottom:4px">คนที่ ${n}</div>
+    <div class="row"><div><label class="f">ชื่อ <b>*</b></label><input type="text" data-f="first" placeholder="ไม่ต้องใส่คำนำหน้า"></div>
+    <div><label class="f">นามสกุล <b>*</b></label><input type="text" data-f="last"></div></div>
+    <label class="f">หน่วยงาน/ภาควิชา</label><input type="text" data-f="dept" list="rDepList" autocomplete="off" placeholder="พิมพ์แล้วเลือกจากรายการ"></div>`;
+  app.insertAdjacentHTML('beforeend', `<div class="sheet" id="raSheet"><div class="sbox"><h2>เพิ่มรายชื่อบุคลากร</h2>
+    <div class="hint">สำหรับเพิ่มทีละ 1–2 คน (เช่น บุคลากรใหม่) ถ้าจำนวนมากให้ใช้ "นำเข้าไฟล์ .xls"</div>
+    <datalist id="rDepList">${depts.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+    <div id="raRows">${row(1)}</div>
+    <div style="margin:10px 0"><a href="javascript:void 0" id="raMore">➕ เพิ่มอีก 1 คน</a></div>
+    <div class="row"><button class="btn sec" id="raX">ยกเลิก</button><button class="btn" id="raOk">บันทึก</button></div></div></div>`);
+  const close = () => { const e = $('#raSheet'); if (e) e.remove(); };
+  $('#raX').onclick = close; $('#raSheet').onclick = e => { if (e.target.id === 'raSheet') close(); };
+  $('#raMore').onclick = () => { $('#raRows').insertAdjacentHTML('beforeend', row(2)); $('#raMore').parentNode.remove(); };
+  $('#raSheet [data-f=first]').focus();
+  $('#raOk').onclick = async () => {
+    const people = [...app.querySelectorAll('#raRows [data-p]')].map(b => { const g = f => b.querySelector(`[data-f=${f}]`).value.trim(); return { first: g('first'), last: g('last'), dept: g('dept') }; })
+      .filter(p => p.first || p.last || p.dept);
+    if (!people.length) return toast('กรุณากรอกชื่อ');
+    if (people.some(p => !p.first || !p.last)) return toast('กรุณากรอกทั้งชื่อและนามสกุล');
+    const r = await run(() => api('rosterAdd', { people }));
+    close(); toast('เพิ่มแล้ว ' + r.added + ' คน' + (r.verified ? ' · ผู้แจ้งที่รอตรวจผ่านอัตโนมัติ ' + r.verified + ' คน' : ''), 4000);
+    CACHE.drop('vf'); CACHE.drop('ov'); pageVerify();
+  };
+}
+/** ค้นแล้วเลือกลบได้หลายคน (เลือกข้ามการค้นหาได้) */
+function rosterDeleteSheet() {
+  const picked = new Map();
+  app.insertAdjacentHTML('beforeend', `<div class="sheet" id="rdSheet"><div class="sbox" style="max-height:90vh">
+    <h2>ลบรายชื่อบุคลากร</h2>
+    <div class="srch"><input type="search" id="rdQ" placeholder="ค้นชื่อ นามสกุล หรือหน่วยงาน"><button class="btn sm" id="rdGo" style="flex:none;width:auto;padding:0 16px">ค้นหา</button></div>
+    <div id="rdRes" class="hint">พิมพ์อย่างน้อย 2 ตัวอักษร แล้วติ๊กคนที่ต้องการลบ (ค้นหลายครั้งแล้วเลือกรวมกันได้)</div>
+    <div id="rdPick" class="hint"></div>
+    <div class="row" style="margin-top:12px"><button class="btn sec" id="rdX">ปิด</button><button class="btn bad" id="rdOk" disabled style="opacity:.5">ลบที่เลือก (0 คน)</button></div></div></div>`);
+  const close = () => { const e = $('#rdSheet'); if (e) e.remove(); };
+  const upd = () => {
+    const n = picked.size, b = $('#rdOk');
+    b.textContent = 'ลบที่เลือก (' + n + ' คน)'; b.disabled = !n; b.style.opacity = n ? 1 : .5;
+    $('#rdPick').innerHTML = n ? 'เลือกแล้ว: ' + [...picked.values()].map(esc).join(', ') : '';
+  };
+  const search = async () => {
+    const q = $('#rdQ').value.trim(); if (q.length < 2) return toast('พิมพ์อย่างน้อย 2 ตัวอักษร');
+    const r = await run(() => api('rosterSearch', { q }));
+    $('#rdRes').innerHTML = !r.list.length ? 'ไม่พบ "' + esc(q) + '"' :
+      `<div class="small muted" style="margin:8px 0 2px">พบ ${r.found} คน${r.found > r.list.length ? ' (แสดง ' + r.list.length + ' คนแรก — พิมพ์ให้เจาะจงขึ้น)' : ''} <a href="javascript:void 0" id="rdAll">เลือกทั้งหมดในหน้านี้</a></div>` +
+      r.list.map(x => `<label class="grpchk"><input type="checkbox" data-id="${esc(x.id)}" data-n="${esc(x.name)}"${picked.has(x.id) ? ' checked' : ''}><span>${esc(x.name)}<br><span class="small muted">${esc(x.dept || 'ไม่ระบุแผนก')}${x.bound ? ' · ผูก LINE แล้ว' : ''}</span></span></label>`).join('');
+    app.querySelectorAll('#rdRes [data-id]').forEach(c => c.onchange = () => { if (c.checked) picked.set(c.dataset.id, c.dataset.n); else picked.delete(c.dataset.id); upd(); });
+    const all = $('#rdAll'); if (all) all.onclick = () => { app.querySelectorAll('#rdRes [data-id]').forEach(c => { c.checked = true; picked.set(c.dataset.id, c.dataset.n); }); upd(); };
+  };
+  $('#rdGo').onclick = search; $('#rdQ').onkeydown = e => { if (e.key === 'Enter') search(); };
+  $('#rdX').onclick = close; $('#rdSheet').onclick = e => { if (e.target.id === 'rdSheet') close(); };
+  $('#rdQ').focus();
+  $('#rdOk').onclick = () => confirmSheet('ลบ ' + picked.size + ' คนออกจากรายชื่อ?', 'คนที่ถูกลบ ถ้าเคยยืนยันตัวตนไว้ จะกลับเป็น "รอตรวจ" (ยังแจ้งซ่อมได้)', 'ลบ', async () => {
+    const r = await run(() => api('rosterDelete', { ids: [...picked.keys()] }));
+    close(); toast('ลบแล้ว ' + r.deleted + ' คน' + (r.backToPending ? ' · กลับเป็นรอตรวจ ' + r.backToPending + ' คน' : ''), 4000);
+    CACHE.drop('vf'); CACHE.drop('ov'); pageVerify();
+  });
 }
 
 /** โหลดไลบรารีอ่าน/เขียน Excel เมื่อจำเป็นเท่านั้น */
@@ -1009,20 +1068,20 @@ function saveBook(X, wb, name, type) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
 }
-const ROSTER_HEAD = ['ลำดับ', 'ชื่อ-นามสกุล', 'หน่วยงาน/ภาควิชา', 'หมายเหตุ'];
+const ROSTER_HEAD = ['ลำดับ', 'ชื่อ', 'นามสกุล', 'หน่วยงาน/ภาควิชา', 'หมายเหตุ'];
 /** ส่งออกฟอร์มเปล่า (.xls) สำหรับกรอกรายชื่อบุคลากร แล้วนำเข้ากลับ */
 async function exportRosterForm() {
   const X = await run(loadXlsx);
   const ws = X.utils.aoa_to_sheet([ROSTER_HEAD]);
-  ws['!cols'] = [{ wch: 7 }, { wch: 32 }, { wch: 40 }, { wch: 24 }];
+  ws['!cols'] = [{ wch: 7 }, { wch: 20 }, { wch: 24 }, { wch: 40 }, { wch: 24 }];
   const how = X.utils.aoa_to_sheet([
     ['วิธีกรอกฟอร์มรายชื่อบุคลากร'], [''],
     ['1. กรอกในแผ่นงาน "รายชื่อบุคลากร" 1 แถวต่อ 1 คน (อย่าแก้หัวตาราง)'],
-    ['2. ชื่อ-นามสกุล: ใส่คำนำหน้าหรือไม่ก็ได้ เช่น นางสาวสุธิมา กิตติ'],
+    ['2. ชื่อ และ นามสกุล แยกคนละช่อง ไม่ต้องใส่คำนำหน้า (นาย/นาง/นางสาว/ดร./ผศ.) เช่น ชื่อ = สุธิมา, นามสกุล = กิตติ'],
     ['3. หน่วยงาน/ภาควิชา: ใส่ชื่อหน่วยงานที่สังกัด เช่น ภาควิชาสรีรวิทยา, งานอาคารสถานที่, รพส.มก. (ผู้แจ้งต้องกรอกหน่วยงานตรงกับช่องนี้)'],
     ['4. บันทึกเป็น .xls หรือ .xlsx แล้วกด "นำเข้าไฟล์ .xls" ในหน้าตรวจสิทธิ์ผู้แจ้ง'],
     ['5. การนำเข้าจะแทนที่รายชื่อเดิมทั้งหมด — ใส่ทุกคนที่มีสิทธิ์แจ้งซ่อม (บุคลากรเท่านั้น ไม่รวมนิสิต)'],
-    [''], ['ตัวอย่าง'], ROSTER_HEAD, [1, 'นางสาวสุธิมา กิตติ', 'ภาควิชาสรีรวิทยา', ''], [2, 'นายสมชาย ใจดี', 'งานอาคารสถานที่', 'ย้ายมาจากงานพัสดุ']
+    [''], ['ตัวอย่าง'], ROSTER_HEAD, [1, 'สุธิมา', 'กิตติ', 'ภาควิชาสรีรวิทยา', ''], [2, 'สมชาย', 'ใจดี', 'งานอาคารสถานที่', 'ย้ายมาจากงานพัสดุ']
   ]);
   how['!cols'] = [{ wch: 90 }];
   const wb = X.utils.book_new();
@@ -1030,16 +1089,6 @@ async function exportRosterForm() {
   X.utils.book_append_sheet(wb, how, 'วิธีกรอก');
   saveBook(X, wb, 'roster-form.xls', 'biff8');
   toast('ดาวน์โหลดฟอร์มแล้ว (ถ้าเปิดใน LINE แล้วไม่ดาวน์โหลด ให้เปิดหน้านี้บนคอมพิวเตอร์)', 4000);
-}
-/** รายการผู้แจ้งที่ยังไม่ยืนยันตัวตนของเดือน → Excel */
-async function exportVerifyMonth(r) {
-  const X = await run(loadXlsx);
-  const head = ['เลขใบงาน', 'วันที่แจ้ง', 'ผู้แจ้ง', 'หน่วยงาน', 'โทร', 'รายการ', 'สถานะงาน', 'ผลตรวจตอนแจ้ง', 'ผลตรวจล่าสุด'];
-  const rows = r.rows.map(x => [x.code, x.created, x.reporter, x.dept, x.phone, x.items, x.status, x.check, x.now]);
-  const ws = X.utils.aoa_to_sheet([head].concat(rows.length ? rows : [['ไม่มีรายการ']]));
-  ws['!cols'] = [{ wch: 13 }, { wch: 16 }, { wch: 24 }, { wch: 24 }, { wch: 13 }, { wch: 30 }, { wch: 16 }, { wch: 40 }, { wch: 14 }];
-  const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'ผู้แจ้งยังไม่ยืนยันตัวตน');
-  saveBook(X, wb, 'verify-' + r.ym + '.xlsx', 'xlsx');
 }
 /** อ่านไฟล์ (HIP หรือฟอร์มของระบบ) → แสดงสรุปให้เลือกกลุ่ม → ส่งเข้าระบบ */
 async function importRoster(file, exclude) {
@@ -1050,11 +1099,14 @@ async function importRoster(file, exclude) {
     const sh = wb.Sheets['รายชื่อบุคลากร'] || wb.Sheets[wb.SheetNames[0]];
     aoa = X.utils.sheet_to_json(sh, { header: 1, raw: false, defval: '' });
   } catch (e) { return toast('อ่านไฟล์ไม่ได้: ' + (e.message || e), 5000); }
-  const hi = aoa.findIndex(row => row.some(c => /ชื่อผู้ใช้|ชื่อ-นามสกุล/.test(String(c))));
-  if (hi < 0) return toast('ไม่พบหัวตาราง "ชื่อ-นามสกุล" หรือ "ชื่อผู้ใช้" — ใช้ไฟล์จาก HIP หรือฟอร์มของระบบเท่านั้น', 5000);
+  const hi = aoa.findIndex(row => row.some(c => /^(ชื่อผู้ใช้|ชื่อ-นามสกุล|ชื่อ)$/.test(String(c).trim())));
+  if (hi < 0) return toast('ไม่พบหัวตาราง "ชื่อ" / "นามสกุล" หรือ "ชื่อผู้ใช้" — ใช้ไฟล์จาก HIP หรือฟอร์มของระบบเท่านั้น', 5000);
   const H = aoa[hi].map(c => String(c).trim()), col = re => H.findIndex(h => re.test(h));
   const hip = col(/ชื่อผู้ใช้/) >= 0;
-  const cN = hip ? col(/ชื่อผู้ใช้/) : col(/ชื่อ-นามสกุล/), cD = hip ? col(/^แผนก/) : col(/หน่วยงาน/), cE = col(/วันหมดอายุ/);
+  // ฟอร์มของระบบ: ชื่อ | นามสกุล แยกช่อง (ฟอร์มรุ่นแรกใช้ช่องเดียว "ชื่อ-นามสกุล" ก็ยังอ่านได้)
+  const cF = hip ? col(/ชื่อผู้ใช้/) : col(/^(ชื่อ|ชื่อ-นามสกุล)$/), cL = hip ? -1 : col(/^นามสกุล$/);
+  const cD = hip ? col(/^แผนก/) : col(/หน่วยงาน/), cE = col(/วันหมดอายุ/);
+  const cellName = row => (String(row[cF] || '').trim() + (cL >= 0 ? ' ' + String(row[cL] || '').trim() : '')).trim();
   const exRe = exclude ? new RegExp(exclude) : null, today = new Date().toISOString().slice(0, 10);
   const LABEL = /ห้อง|หอพัก|ชั้น\s*\d|สำรอง|ทดสอบ|test|แขก|guest|visitor|ชั่วคราว|\d{3,}/i;
   // แผนกใน HIP เป็นลำดับชั้น "5.ภาควิชา...\5.3ภาควิชาพยาธิวิทยา" → "ภาควิชา... › ภาควิชาพยาธิวิทยา" (ผู้แจ้งกรอกชั้นไหนก็ตรง)
@@ -1062,7 +1114,7 @@ async function importRoster(file, exclude) {
   const topDept = d => { const t = String(d || '').split('\\')[0].trim(); return t ? t.replace(/^[\d.]+\s*/, '') : '(ไม่ระบุแผนก)'; };
   const ok = [], out = { 'ห้องพัก/บัตรสำรอง/ไม่ใช่ชื่อคน': 0, 'นิสิต/ผู้มาติดต่อ': 0, 'บัตรหมดอายุ': 0 };
   aoa.slice(hi + 1).forEach(row => {
-    const name = String(row[cN] || '').trim(); if (!name) return;
+    const name = cellName(row); if (!name) return;
     const dept = cD >= 0 ? String(row[cD] || '').trim() : '';
     // ไฟล์ HIP มีแถวที่ไม่ใช่คน (ห้องพักนิสิต บัตรสำรอง) ปนอยู่ — ฟอร์มของระบบเชื่อตามที่กรอก
     if (!/[ก-๙a-z]/i.test(name) || (hip && (LABEL.test(name) || !/\s/.test(name.replace(/^(นางสาว|นาง|นาย)/, ''))))) { out['ห้องพัก/บัตรสำรอง/ไม่ใช่ชื่อคน']++; return; }
