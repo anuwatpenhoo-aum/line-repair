@@ -205,6 +205,9 @@ table.tt td{text-align:center;padding:8px 4px;border-bottom:1px solid var(--line
 .dpi i{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-style:normal;font-size:22px;color:var(--muted)}
 .dpi.dpsel{background:var(--pri-soft);border-radius:10px;border:0;margin:4px 0}.dpi.dpsel b{color:#036B30}
 .dpc{font-size:13px;margin:10px 0 2px;color:var(--muted)}.dpc a{color:var(--blue)}
+.dmr{border-bottom:1px solid var(--line);padding:10px 4px}.dmr.off b{color:var(--muted)}
+.dmn{position:relative;padding-right:24px;cursor:pointer}.dmn span.small{display:block}.dmn i{position:absolute;right:4px;top:50%;transform:translateY(-50%);font-style:normal;font-size:22px;color:var(--muted)}
+.dma{font-size:13px;margin-top:4px}.dma a{color:var(--blue)}
 </style>
 <link rel="preconnect" href="https://script.google.com" crossorigin>
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
@@ -1014,7 +1017,8 @@ function drawVerify(r) {
     <div class="card imp"><div style="flex:1;min-width:220px"><b>รายชื่อบุคลากร ${R.n ? '(' + R.n.toLocaleString() + ' คน)' : '(ยังไม่มี)'}</b>
       <div class="small muted">${R.at ? 'นำเข้าล่าสุด ' + esc(R.at) + (R.by ? ' โดย ' + esc(R.by) : '') + (R.file ? ' · ไฟล์ ' + esc(R.file) : '') + (R.excluded ? ' · ตัดออก ' + R.excluded + ' แถว' : '') : 'นำเข้าไฟล์จากโปรแกรม HIP หรือไฟล์ที่กรอกตามฟอร์มของระบบ'}</div></div>
       <div class="row2"><button class="btn blue sm" id="vfi">📥 นำเข้าไฟล์ .xls</button><button class="btn sec sm" id="vfe">📄 ส่งออกฟอร์ม</button>
-        <button class="btn sec sm" id="vfa">➕ เพิ่มรายชื่อ</button><button class="btn sec sm" id="vfd" style="color:var(--bad)">🗑 ลบรายชื่อ</button></div>
+        <button class="btn sec sm" id="vfa">➕ เพิ่มรายชื่อ</button><button class="btn sec sm" id="vfd" style="color:var(--bad)">🗑 ลบรายชื่อ</button>
+        <button class="btn sec sm" id="vfu">🏢 หน่วยงาน</button></div>
       <input type="file" id="vff" accept=".xls,.xlsx" class="hidden"></div>
     <div class="tabs">${[['wait', 'รอตรวจ'], ['ok', 'อนุญาตแล้ว'], ['no', 'ไม่มีสิทธิ์'], ['all', 'ทั้งหมด']].map(([k, l]) => `<button class="tab${k === VF_TAB ? ' on' : ''}" data-t="${k}">${l}<i>${cnt(k)}</i></button>`).join('')}</div>
     <div class="vf-list" id="vfl"></div>
@@ -1039,6 +1043,7 @@ function drawVerify(r) {
   drawList();
   $('#vfa').onclick = () => rosterAddSheet(r.depts || []);
   $('#vfd').onclick = () => rosterDeleteSheet();
+  $('#vfu').onclick = () => deptManager();
   $('#vfe').onclick = () => exportRosterForm();
   $('#vfi').onclick = () => $('#vff').click();
   $('#vff').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) importRoster(f, r.exclude); };
@@ -1103,6 +1108,54 @@ function rosterDeleteSheet() {
     close(); toast('ลบแล้ว ' + r.deleted + ' คน' + (r.backToPending ? ' · กลับเป็นรอตรวจ ' + r.backToPending + ' คน' : ''), 4000);
     CACHE.drop('vf'); CACHE.drop('ov'); pageVerify();
   });
+}
+
+/** จัดการหน่วยงาน (ชีต "หน่วยงาน"): ไล่ดูเป็นขั้น เพิ่ม / แก้ชื่อ / ซ่อน */
+async function deptManager() {
+  let list = [], at = '';
+  app.insertAdjacentHTML('beforeend', `<div class="sheet" id="dmSheet"><div class="sbox" style="height:88vh;display:flex;flex-direction:column">
+    <h2 style="margin-bottom:4px">จัดการหน่วยงาน</h2>
+    <div class="hint" style="margin:0">รายการนี้ใช้ในดรอปดาวน์ตอนผู้แจ้งลงทะเบียน · แก้ชื่อแล้ว ชื่อหน่วยในรายชื่อบุคลากรและของผู้แจ้งจะเปลี่ยนตาม</div>
+    <div id="dmCrumb" class="dpc"></div><div id="dmAdd"></div>
+    <div id="dmL" style="flex:1;overflow:auto;margin:4px -4px 0;padding:0 4px"><div class="empty">กำลังโหลด...</div></div>
+    <div class="row" style="margin-top:10px"><button class="btn sec" id="dmX">ปิด</button></div></div></div>`);
+  const close = () => { const e = $('#dmSheet'); if (e) e.remove(); };
+  $('#dmX').onclick = close; $('#dmSheet').onclick = e => { if (e.target.id === 'dmSheet') close(); };
+  const load = async () => { list = (await run(() => api('deptList', {}))).list; draw(); };
+  const depth = p => p ? p.split(' › ').length : 0;
+  const draw = () => {
+    const parts = at ? at.split(' › ') : [];
+    $('#dmCrumb').innerHTML = `<a href="javascript:void 0" data-at="">ทั้งหมด</a>` + parts.map((x, i) => ` › <a href="javascript:void 0" data-at="${esc(parts.slice(0, i + 1).join(' › '))}">${esc(x)}</a>`).join('');
+    app.querySelectorAll('#dmCrumb [data-at]').forEach(a => a.onclick = () => { at = a.dataset.at; draw(); });
+    $('#dmAdd').innerHTML = depth(at) < 3 ? `<button class="btn sec sm" id="dmNew" style="width:auto;padding:8px 14px;margin:6px 0">➕ ${at ? 'เพิ่มหน่วยย่อยใน “' + esc(parts[parts.length - 1]) + '”' : 'เพิ่มสังกัดระดับบน'}</button>` : '<div class="hint">ระดับนี้เป็นระดับสุดท้าย (3 ระดับ)</div>';
+    const nb = $('#dmNew'); if (nb) nb.onclick = () => {
+      $('#dmAdd').innerHTML = `<div class="row" style="margin:6px 0"><input type="text" id="dmNewT" placeholder="ชื่อหน่วยงานใหม่"><button class="btn sm" id="dmNewOk" style="flex:none;width:auto;padding:0 16px">เพิ่ม</button></div>`;
+      $('#dmNewT').focus();
+      $('#dmNewOk').onclick = async () => { const name = $('#dmNewT').value.trim(); if (name.length < 2) return toast('กรุณาพิมพ์ชื่อ');
+        await run(() => api('deptAdd', { parent: at, name })); toast('เพิ่มแล้ว'); CACHE.drop('init'); await load(); };
+    };
+    const kids = list.filter(x => x.segs.length === depth(at) + 1 && (!at || x.path.indexOf(at + ' › ') === 0)).sort((a, b) => a.segs[a.segs.length - 1].localeCompare(b.segs[b.segs.length - 1], 'th'));
+    $('#dmL').innerHTML = kids.length ? kids.map(x => { const sub = list.filter(y => y.path.indexOf(x.path + ' › ') === 0 && y.segs.length === x.segs.length + 1).length;
+      return `<div class="dmr${x.on ? '' : ' off'}" data-p="${esc(x.path)}">
+        <div class="dmn" ${depth(x.path) < 3 || sub ? 'data-open="1"' : ''}><b>${esc(x.segs[x.segs.length - 1])}</b>${x.on ? '' : ' <span class="badge s-cxl">ซ่อนอยู่</span>'}
+          <span class="small muted">${x.n} คน${sub ? ' · ' + sub + ' หน่วยย่อย' : ''}</span>${depth(x.path) < 3 || sub ? '<i>›</i>' : ''}</div>
+        <div class="dma"><a href="javascript:void 0" data-rn="1">แก้ชื่อ</a> · <a href="javascript:void 0" data-tg="1">${x.on ? 'ซ่อน' : 'แสดง'}</a></div></div>`; }).join('')
+      : '<div class="empty">ยังไม่มีหน่วยย่อย</div>';
+    app.querySelectorAll('#dmL .dmr').forEach(r => {
+      const path = r.dataset.p, x = list.find(y => y.path === path);
+      const op = r.querySelector('[data-open]'); if (op) op.onclick = () => { at = path; draw(); $('#dmL').scrollTop = 0; };
+      r.querySelector('[data-tg]').onclick = async () => { await run(() => api('deptToggle', { path, on: !x.on })); toast(x.on ? 'ซ่อนแล้ว — ไม่ขึ้นในดรอปดาวน์' : 'แสดงแล้ว'); CACHE.drop('init'); await load(); };
+      r.querySelector('[data-rn]').onclick = () => {
+        r.querySelector('.dma').innerHTML = `<div class="row" style="margin-top:6px"><input type="text" value="${esc(x.segs[x.segs.length - 1])}"><button class="btn sm" style="flex:none;width:auto;padding:0 14px">บันทึก</button></div>`;
+        const inp = r.querySelector('.dma input'); inp.focus(); inp.select();
+        r.querySelector('.dma button').onclick = async () => { const name = inp.value.trim(); if (name.length < 2) return toast('กรุณาพิมพ์ชื่อ');
+          const res = await run(() => api('deptRename', { path, name }));
+          toast('แก้ชื่อแล้ว' + (res.roster || res.users ? ' · รายชื่อ ' + (res.roster || 0) + ' คน · ผู้แจ้ง ' + (res.users || 0) + ' คน เปลี่ยนตาม' : ''), 4000);
+          CACHE.drop('init'); CACHE.drop('vf'); await load(); };
+      };
+    });
+  };
+  draw(); await load();
 }
 
 /** โหลดไลบรารีอ่าน/เขียน Excel เมื่อจำเป็นเท่านั้น */

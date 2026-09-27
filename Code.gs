@@ -15,6 +15,7 @@ const SH = {
   USERS: 'ผู้แจ้ง',
   KB: 'คลังความรู้',
   ROSTER: 'รายชื่อบุคลากร',
+  DEPTS: 'หน่วยงาน',
   SET: 'Settings',
   LISTS: 'Lists',
   RPT: '_ReportData',
@@ -222,6 +223,16 @@ const USER_FIELDS = [
   ['verify_note', 'หมายเหตุการตรวจ']
 ];
 
+/** รายการภาควิชา/หน่วยงาน (ดรอปดาวน์ขั้นบันไดตอนลงทะเบียน) — 1 แถว = 1 หน่วย */
+const DEPT_FIELDS = [
+  ['l1', 'ระดับ 1 (สังกัด)'],
+  ['l2', 'ระดับ 2'],
+  ['l3', 'ระดับ 3'],
+  ['active', 'ใช้งาน'],
+  ['source', 'ที่มา'],
+  ['updated_at', 'แก้ไขล่าสุด']
+];
+
 /** รายชื่อบุคลากรที่มีสิทธิ์แจ้งซ่อม (นำเข้าจากไฟล์ .xls) — ชื่อ + หน่วยงานเท่านั้น */
 const ROSTER_FIELDS = [
   ['key', 'รหัสชื่อ (ใช้เทียบ)'],
@@ -368,6 +379,7 @@ function dropMemo_(shName) {
   if (shName === SH.USERS) allUsers_._m = null;
   if (shName === SH.KB) allKb_._m = null;
   if (shName === SH.ROSTER) allRoster_._m = null;
+  if (shName === SH.DEPTS) allDepts_._m = null;
 }
 
 /** ===== Tickets ===== */
@@ -934,7 +946,7 @@ function doPost(e) {
     return json_(Object.assign({ ok: true }, handleApi_(body)));
   } catch (err) {
     const msg = String((err && err.message) || err);
-    if (msg !== 'SESSION_EXPIRED' && !/^(กรุณา|ไม่|เฉพาะ|รหัส|งาน|ช่าง|อาคาร|ใบแจ้ง|เลือก|พิมพ์|ขอเลื่อน|บัญชี|เลข|มี)/.test(msg)) logError_(err, 'api ' + body.action);
+    if (msg !== 'SESSION_EXPIRED' && !/^(กรุณา|ไม่|เฉพาะ|รหัส|งาน|ช่าง|อาคาร|ใบแจ้ง|เลือก|พิมพ์|ขอเลื่อน|บัญชี|เลข|มี|เพิ่ม)/.test(msg)) logError_(err, 'api ' + body.action);
     return json_({ ok: false, error: msg });
   }
 }
@@ -973,6 +985,10 @@ function handleApi_(req) {
     case 'rosterSearch': return apiRosterSearch_(me, d);
     case 'rosterAdd': return apiRosterAdd_(me, d);
     case 'rosterDelete': return apiRosterDelete_(me, d);
+    case 'deptList': return apiDeptList_(me);
+    case 'deptAdd': return apiDeptAdd_(me, d);
+    case 'deptRename': return apiDeptRename_(me, d);
+    case 'deptToggle': return apiDeptToggle_(me, d);
     // เจ้าหน้าที่
     case 'staffTickets': return apiStaffTickets_(me);
     case 'search': return apiSearch_(me, d);
@@ -2798,6 +2814,8 @@ function refreshVerify_(u) {
 function rosterDepts_() {
   const cache = CacheService.getScriptCache(), hit = cache.get('roster_depts3');
   if (hit) return JSON.parse(hit);
+  const fromSheet = deptOptions_();   // ชีต "หน่วยงาน" (ถ้ามี) เป็นรายการหลัก
+  if (fromSheet) { try { cache.put('roster_depts3', JSON.stringify(fromSheet.slice(0, 800)), 21600); } catch (e) { /* ใหญ่เกิน cache */ } return fromSheet.slice(0, 800); }
   // ทุกระดับของสายงาน เช่น "รพส.มก › แผนกอายุรกรรม › หน่วยหัตถการ" → รพส.มก / แผนกอายุรกรรม / หน่วยหัตถการ (บอกสังกัดไว้ใน p)
   const seen = {}, out = [];
   allRoster_().forEach(r => {
@@ -2941,6 +2959,7 @@ function apiRosterAdd_(me, d) {
     have[rosterId_(o)] = o;
   });
   clearRosterCaches_();
+  try { syncDeptsFromRoster_(); } catch (e) { logError_(e, 'syncDepts'); }
   // ผู้แจ้งที่รอตรวจอยู่ อาจผ่านทันทีเมื่อมีชื่อในรายชื่อแล้ว
   let verified = 0;
   allUsers_().filter(u => !staffByUid_(u.uid) && (!u.verify || u.verify === 'pending')).forEach(u => { if (refreshVerify_(u).verify === 'verified') verified++; });
@@ -2997,11 +3016,168 @@ function apiRosterImport_(me, d) {
   clearRosterCaches_();
   const info = { at: thaiDateTime_(now), by: me.name, file: clip_(d.file, 120), source: clip_(d.source, 30), total: Number(d.total) || rows.length, excluded: Number(d.excluded) || 0 };
   setSetting_('ROSTER_INFO', JSON.stringify(info));
+  try { info.newDepts = syncDeptsFromRoster_(); } catch (e) { logError_(e, 'syncDepts'); }
   // ตรวจผู้แจ้งทุกคนใหม่ตามรายชื่อชุดนี้ (ไม่แตะผลที่แอดมินตัดสินแล้ว)
   let verified = 0, pending = 0;
   allUsers_().filter(u => !staffByUid_(u.uid)).forEach(u => { refreshVerify_(u); if (u.verify === 'verified') verified++; else if (u.verify === 'pending') pending++; });
   log_('', 'นำเข้ารายชื่อบุคลากร', '', '', me, out.length + ' คน จากไฟล์ ' + info.file + ' (ตัดออก ' + info.excluded + ' แถว)');
   return { n: out.length, verified: verified, pending: pending, info: info };
+}
+
+// ===== Dept.gs =====
+/** ===== ชีต "หน่วยงาน" — รายการหลักของภาควิชา/หน่วยงาน (ใช้ทำดรอปดาวน์ขั้นบันไดตอนลงทะเบียน)
+ *  1 แถว = 1 หน่วย ระบุสายสังกัดเป็น ระดับ 1 / ระดับ 2 / ระดับ 3 (+ ใช้งาน ✓)
+ *  - ครั้งแรกระบบเติมจากหน่วยงานในรายชื่อบุคลากร และทุกครั้งที่นำเข้า/เพิ่มรายชื่อ ถ้าเจอหน่วยใหม่จะเพิ่มให้
+ *  - แอดมินเพิ่ม / แก้ชื่อ / ซ่อน ได้จากหน้า "ตรวจสิทธิ์ผู้แจ้ง" → ปุ่ม 🏢 หน่วยงาน
+ *  - แก้ชื่อหน่วย = แก้ชื่อหน่วยของคนในรายชื่อบุคลากรและผู้แจ้งที่เลือกหน่วยนั้นตามไปด้วย */
+
+const DEPT_LEVELS = 3;
+function deptExpand_(x) { return str_(x).replace(/^[\d.]+\s*/, '').replace(/^ภ\.\s*/, 'ภาควิชา').trim(); }
+function deptSegs_(path) { return str_(path).split(/\s*›\s*/).map(deptExpand_).filter(Boolean); }
+/** สายสังกัดยาวเกิน 3 ระดับ → รวมส่วนที่เกินไว้ในระดับ 3 */
+function deptFit_(segs) { return segs.length <= DEPT_LEVELS ? segs : segs.slice(0, DEPT_LEVELS - 1).concat(segs.slice(DEPT_LEVELS - 1).join(' / ')); }
+function deptKey_(segs) { return segs.map(deptNorm_).join('>'); }
+function isOn_d_(v) { return v === true || String(v).toUpperCase() === 'TRUE' || v === '✓'; }
+
+function allDepts_() {
+  if (allDepts_._m) return allDepts_._m;
+  if (!ss_().getSheetByName(SH.DEPTS)) return (allDepts_._m = []);
+  return (allDepts_._m = readAll_(SH.DEPTS, DEPT_FIELDS).filter(r => str_(r.l1)).map(r => {
+    r.segs = [r.l1, r.l2, r.l3].map(str_).filter(Boolean);
+    r.path = r.segs.join(' › ');
+    r.on = isOn_d_(r.active);
+    return r;
+  }));
+}
+function clearDeptCaches_() {
+  allDepts_._m = null;
+  try { CacheService.getScriptCache().removeAll(['roster_depts', 'roster_depts2', 'roster_depts3']); } catch (e) { /* ignore */ }
+}
+function deptRow_(segs, src) {
+  const s = deptFit_(segs);
+  return { l1: s[0] || '', l2: s[1] || '', l3: s[2] || '', active: true, source: src || '', updated_at: new Date() };
+}
+
+/** เพิ่มหน่วย (และระดับบนที่ยังไม่มี) จากหน่วยงานในรายชื่อบุคลากร — ไม่แตะหน่วยที่มีอยู่แล้ว (รวมหน่วยที่ซ่อนไว้) */
+function syncDeptsFromRoster_() {
+  if (!ss_().getSheetByName(SH.DEPTS)) ensureSheet_(SH.DEPTS, DEPT_FIELDS, '#5F3DC4');
+  const have = {}; allDepts_().forEach(r => { have[deptKey_(r.segs)] = 1; });
+  const add = [];
+  allRoster_().forEach(r => {
+    const segs = deptFit_(deptSegs_(r.dept));
+    for (let i = 1; i <= segs.length; i++) {
+      const k = deptKey_(segs.slice(0, i));
+      if (!have[k]) { have[k] = 1; add.push(deptRow_(segs.slice(0, i), 'รายชื่อบุคลากร')); }
+    }
+  });
+  if (add.length) {
+    const sh = ss_().getSheetByName(SH.DEPTS), map = colMap_(sh, DEPT_FIELDS), width = sh.getLastColumn();
+    const grid = add.map(o => { const a = new Array(width).fill(''); DEPT_FIELDS.forEach(([k]) => { a[map[k] - 1] = o[k]; }); return a; });
+    sh.getRange(sh.getLastRow() + 1, 1, grid.length, width).setValues(grid);
+    clearDeptCaches_();
+  }
+  return add.length;
+}
+
+/** รายการสำหรับดรอปดาวน์: { v: ชื่อหน่วย, p: สายสังกัด } เฉพาะหน่วยที่ใช้งาน (ระดับบนถูกซ่อน = ซ่อนทั้งสาย) */
+function deptOptions_() {
+  const rows = allDepts_();
+  if (!rows.length) return null;
+  const off = {}; rows.filter(r => !r.on).forEach(r => { off[deptKey_(r.segs)] = 1; });
+  const hidden = segs => segs.some((x, i) => off[deptKey_(segs.slice(0, i + 1))]);
+  const out = [], seen = {};
+  rows.forEach(r => {
+    if (hidden(r.segs)) return;
+    const k = deptKey_(r.segs); if (seen[k]) return; seen[k] = 1;
+    // ระดับบนที่ไม่มีแถวของตัวเอง ให้เติมอัตโนมัติ เพื่อให้กดไล่ลงไปได้
+    for (let i = 1; i < r.segs.length; i++) {
+      const pk = deptKey_(r.segs.slice(0, i));
+      if (!seen[pk]) { seen[pk] = 1; out.push({ v: r.segs[i - 1], p: r.segs.slice(0, i - 1).join(' › ') }); }
+    }
+    out.push({ v: r.segs[r.segs.length - 1], p: r.segs.slice(0, -1).join(' › ') });
+  });
+  return out.sort((a, b) => (a.p ? a.p + ' › ' + a.v : a.v).localeCompare(b.p ? b.p + ' › ' + b.v : b.v, 'th'));
+}
+
+/* ---------- หน้าเว็บ (แอดมิน) ---------- */
+function apiDeptList_(me) {
+  requireAdmin_(me);
+  if (!allDepts_().length) syncDeptsFromRoster_();
+  const count = {};
+  allRoster_().forEach(r => {
+    const segs = deptFit_(deptSegs_(r.dept));
+    for (let i = 1; i <= segs.length; i++) { const k = deptKey_(segs.slice(0, i)); count[k] = (count[k] || 0) + 1; }
+  });
+  return { list: allDepts_().map(r => ({ path: r.path, segs: r.segs, on: r.on, n: count[deptKey_(r.segs)] || 0, src: str_(r.source) })) };
+}
+
+/** เพิ่มหน่วยใหม่ใต้สายสังกัด parent (ว่าง = ระดับบนสุด) */
+function apiDeptAdd_(me, d) {
+  requireAdmin_(me);
+  const name = clip_(d.name, 120).replace(/›/g, '').trim();
+  if (name.length < 2) throw new Error('กรุณาพิมพ์ชื่อหน่วยงาน');
+  const parent = deptSegs_(d.parent);
+  if (parent.length >= DEPT_LEVELS) throw new Error('เพิ่มได้ไม่เกิน ' + DEPT_LEVELS + ' ระดับ');
+  const segs = parent.concat(deptExpand_(name));
+  if (!ss_().getSheetByName(SH.DEPTS)) ensureSheet_(SH.DEPTS, DEPT_FIELDS, '#5F3DC4');
+  const have = {}; allDepts_().forEach(r => { have[deptKey_(r.segs)] = r; });
+  if (have[deptKey_(segs)]) throw new Error('มีหน่วย "' + segs.join(' › ') + '" อยู่แล้ว');
+  for (let i = 1; i < segs.length; i++) if (!have[deptKey_(segs.slice(0, i))]) appendObj_(SH.DEPTS, DEPT_FIELDS, deptRow_(segs.slice(0, i), 'แอดมินเพิ่ม'));
+  appendObj_(SH.DEPTS, DEPT_FIELDS, deptRow_(segs, 'แอดมินเพิ่ม'));
+  clearDeptCaches_();
+  log_('', 'เพิ่มหน่วยงาน', '', '', me, segs.join(' › '));
+  return { path: segs.join(' › ') };
+}
+
+/** แก้ชื่อหน่วย — หน่วยย่อย, รายชื่อบุคลากร และผู้แจ้งที่เลือกชื่อเดิม เปลี่ยนตาม */
+function apiDeptRename_(me, d) {
+  requireAdmin_(me);
+  const from = deptSegs_(d.path), name = deptExpand_(clip_(d.name, 120).replace(/›/g, ''));
+  if (!from.length) throw new Error('ไม่พบหน่วยงาน');
+  if (name.length < 2) throw new Error('กรุณาพิมพ์ชื่อใหม่');
+  const lv = from.length - 1, oldName = from[lv], to = from.slice(0, lv).concat(name);
+  if (deptNorm_(oldName) === deptNorm_(name) && oldName === name) return { path: to.join(' › '), changed: 0 };
+  const fk = deptKey_(from);
+  if (deptKey_(to) !== fk && allDepts_().some(r => deptKey_(r.segs) === deptKey_(to))) throw new Error('มีหน่วย "' + to.join(' › ') + '" อยู่แล้ว');
+  const under = segs => segs.length >= from.length && deptKey_(segs.slice(0, from.length)) === fk;
+  // 1) ชีตหน่วยงาน
+  let nd = 0;
+  allDepts_().forEach(r => {
+    if (!under(r.segs)) return;
+    const s = r.segs.slice(); s[lv] = name;
+    updateObj_(SH.DEPTS, DEPT_FIELDS, r._row, { l1: s[0] || '', l2: s[1] || '', l3: s[2] || '', updated_at: new Date() }); nd++;
+  });
+  // 2) รายชื่อบุคลากร
+  let nr = 0;
+  allRoster_().forEach(r => {
+    const s = deptFit_(deptSegs_(r.dept));
+    if (!under(s)) return;
+    s[lv] = name;
+    updateObj_(SH.ROSTER, ROSTER_FIELDS, r._row, { dept: s.join(' › ') }); nr++;
+  });
+  // 3) ผู้แจ้งที่เลือกหน่วยนี้ไว้ (ชื่อหน่วยตรงกับชื่อเดิม)
+  let nu = 0;
+  allUsers_().forEach(u => {
+    if (deptNorm_(u.department) !== deptNorm_(oldName)) return;
+    const rk = u.roster_dept ? deptFit_(deptSegs_(u.roster_dept)) : null;
+    if (rk && !under(rk) && lv > 0) return;   // ชื่อซ้ำกับหน่วยอื่นคนละสาย — ไม่แตะ
+    updateObj_(SH.USERS, USER_FIELDS, u._row, { department: name }); nu++;
+  });
+  clearDeptCaches_(); clearRosterCaches_();
+  log_('', 'แก้ชื่อหน่วยงาน', '', '', me, from.join(' › ') + ' → ' + name + ' (หน่วยงาน ' + nd + ' · รายชื่อ ' + nr + ' คน · ผู้แจ้ง ' + nu + ' คน)');
+  return { path: to.join(' › '), depts: nd, roster: nr, users: nu };
+}
+
+/** ซ่อน / แสดง หน่วย (ซ่อนระดับบน = ซ่อนหน่วยย่อยทั้งหมดในดรอปดาวน์) */
+function apiDeptToggle_(me, d) {
+  requireAdmin_(me);
+  const k = deptKey_(deptSegs_(d.path));
+  const r = allDepts_().find(x => deptKey_(x.segs) === k);
+  if (!r) throw new Error('ไม่พบหน่วยงาน');
+  updateObj_(SH.DEPTS, DEPT_FIELDS, r._row, { active: !!d.on, updated_at: new Date() });
+  clearDeptCaches_();
+  log_('', d.on ? 'แสดงหน่วยงาน' : 'ซ่อนหน่วยงาน', '', '', me, r.path);
+  return { on: !!d.on };
 }
 
 // ===== Setup.gs =====
@@ -3040,6 +3216,8 @@ function setup() {
   ensureSheet_(SH.USERS, USER_FIELDS, '#1864AB');
   ensureSheet_(SH.KB, KB_FIELDS, '#6741D9');
   ensureSheet_(SH.ROSTER, ROSTER_FIELDS, '#0B7285');
+  ensureSheet_(SH.DEPTS, DEPT_FIELDS, '#5F3DC4');
+  syncDeptsFromRoster_();
 
   // Settings: เพิ่มเฉพาะ key ที่ยังไม่มี (ไม่ทับค่าที่ตั้งไว้)
   let set = ss.getSheetByName(SH.SET);
@@ -3125,13 +3303,13 @@ function ensureSheet_(name, fields, color) {
   sh.getRange(1, 1, 1, sh.getLastColumn()).setFontWeight('bold').setBackground(color).setFontColor('#FFFFFF').setWrap(true).setVerticalAlignment('middle');
   sh.setFrozenRows(1);
   if (name === SH.REQ) sh.setFrozenColumns(3);
-  colMap_._m = null; allTickets_._m = null; allStaff_._m = null; allUsers_._m = null; allKb_._m = null; allRoster_._m = null;
+  colMap_._m = null; allTickets_._m = null; allStaff_._m = null; allUsers_._m = null; allKb_._m = null; allRoster_._m = null; allDepts_._m = null;
   return sh;
 }
 
 /** ป้องกันการแก้ไขข้อมูลโดยตรง — แก้ได้เฉพาะเจ้าของไฟล์ (ระบบ) ; ผู้ที่ได้รับแชร์ดูได้อย่างเดียว */
 function protectSheets_() {
-  [SH.REQ, SH.LOG, SH.STAFF, SH.USERS, SH.KB, SH.ROSTER, SH.SET].concat(LIST_SHEETS).forEach(n => {
+  [SH.REQ, SH.LOG, SH.STAFF, SH.USERS, SH.KB, SH.ROSTER, SH.DEPTS, SH.SET].concat(LIST_SHEETS).forEach(n => {
     const sh = ss_().getSheetByName(n);
     if (!sh) return;
     sh.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(p => p.remove());
