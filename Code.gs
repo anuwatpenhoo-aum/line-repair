@@ -265,6 +265,7 @@ const DEFAULT_SETTINGS = [
   ['RICHMENU_STAFF_ID', '', 'Rich menu เจ้าหน้าที่ชุดเดิม (เลิกใช้ ถูกแทนด้วย 2 ชุดด้านล่าง)'],
   ['CODE_PREFIX', 'PH', 'ตัวหน้าเลขใบงาน (PH6909L001 = PH + ปี พ.ศ. 2 หลัก + เดือน + L + เลขวิ่ง 3 หลัก เริ่มใหม่ทุกเดือน)'],
   ['CODE_LETTER', 'L', 'ตัวอักษรกลางเลขใบงาน'],
+  ['HOTLINE_URL', '', 'ปุ่ม "สายด่วน" ในเมนู: ว่าง = โทรหา LINE OA ผ่าน LINE (ต้องเปิดการโทรใน LINE OA Manager) หรือใส่ tel:เบอร์โทร — แก้แล้วรัน setupRichMenu'],
   ['VERIFY_ENABLED', 'TRUE', 'ตรวจสิทธิ์ผู้แจ้งกับรายชื่อบุคลากร (TRUE/FALSE) — ยังไม่ยืนยัน = แจ้งได้แต่ติดป้ายรอตรวจ, แอดมินกด "ไม่มีสิทธิ์" = แจ้งไม่ได้'],
   ['VERIFY_DENY_TEXT', 'บัญชีนี้ไม่มีสิทธิ์แจ้งซ่อม (สำหรับบุคลากรคณะเท่านั้น) หากเป็นบุคลากร กรุณาติดต่อเจ้าหน้าที่ไอทีของคณะ', 'ข้อความที่แสดงเมื่อผู้ไม่มีสิทธิ์พยายามแจ้งซ่อม'],
   ['ROSTER_EXCLUDE', 'นิสิต|ผู้มาติดต่อ', 'หน่วยงานที่ไม่นำเข้าเป็นบุคลากรตอนนำเข้าไฟล์ (คั่นด้วย |)'],
@@ -1192,7 +1193,9 @@ function apiSaveProfile_(me, d) {
   const need = { name: 'ชื่อ-นามสกุล', department: 'ภาควิชา/หน่วยงาน', phone: 'หมายเลขติดต่อกลับ' };
   Object.keys(need).forEach(k => { if (!str_(d[k])) throw new Error('กรุณากรอก ' + need[k]); });
   if (d.building && buildings_().indexOf(d.building) < 0) throw new Error('อาคารไม่ถูกต้อง');
-  if (!str_(d.building) && !str_(d.floor) && !str_(d.room)) throw new Error('กรุณาระบุสถานที่ทำงานประจำ อย่างน้อย 1 ช่อง (อาคาร ชั้น หรือห้อง)');
+  if (!str_(d.building)) throw new Error('กรุณาเลือกอาคารที่ทำงานประจำ');
+  if (!str_(d.floor)) throw new Error('กรุณากรอก ชั้น');
+  if (!str_(d.room)) throw new Error('กรุณากรอก ห้อง');
   const ex = userByUid_(me.uid);
   if (!d.pdpa && !(ex && ex.pdpa_at)) throw new Error('กรุณายอมรับเงื่อนไขการเก็บข้อมูล');
   const now = new Date();
@@ -2793,13 +2796,22 @@ function refreshVerify_(u) {
 
 /** รายชื่อหน่วยงานจากรายชื่อบุคลากร (ให้เลือกตอนลงทะเบียน — ไม่ใช่ข้อมูลส่วนบุคคล) */
 function rosterDepts_() {
-  const cache = CacheService.getScriptCache(), hit = cache.get('roster_depts');
+  const cache = CacheService.getScriptCache(), hit = cache.get('roster_depts2');
   if (hit) return JSON.parse(hit);
-  const seen = {};
-  allRoster_().forEach(r => str_(r.dept).split(' › ').forEach(x => { x = x.trim(); if (x.length >= 3) seen[x] = 1; }));
-  const out = Object.keys(seen).sort((a, b) => a.localeCompare(b, 'th')).slice(0, 400);
-  try { cache.put('roster_depts', JSON.stringify(out), 21600); } catch (e) { /* ใหญ่เกิน cache */ }
-  return out;
+  // ทุกระดับของสายงาน เช่น "รพส.มก › แผนกอายุรกรรม › หน่วยหัตถการ" → รพส.มก / แผนกอายุรกรรม / หน่วยหัตถการ (บอกสังกัดไว้ใน p)
+  const seen = {}, out = [];
+  allRoster_().forEach(r => {
+    const segs = str_(r.dept).split(' › ').map(x => x.trim()).filter(Boolean);
+    segs.forEach((x, i) => {
+      const v = x.replace(/^ภ\.\s*/, 'ภาควิชา'), p = segs.slice(0, i).join(' › ');
+      if (v.length < 2 || seen[v + '|' + p]) return;
+      seen[v + '|' + p] = 1; out.push({ v: v, p: p });
+    });
+  });
+  out.sort((a, b) => (a.p || a.v).localeCompare(b.p || b.v, 'th') || a.v.localeCompare(b.v, 'th'));
+  const res = out.slice(0, 600);
+  try { cache.put('roster_depts2', JSON.stringify(res), 21600); } catch (e) { /* ใหญ่เกิน cache */ }
+  return res;
 }
 
 /** ข้อความสถานะผู้แจ้ง บันทึกลงใบงานตอนแจ้ง (ใช้กรองรายเดือน) — ผู้ไม่มีสิทธิ์จะถูกปฏิเสธที่นี่ */
@@ -2896,7 +2908,7 @@ function apiVerifyReset_(me, d) {
 
 /* ---------- เพิ่ม / ค้นหา / ลบ รายชื่อบุคลากรทีละคน ---------- */
 function rosterId_(r) { return r.key + '|' + deptNorm_(r.dept); }
-function clearRosterCaches_() { allRoster_._m = null; try { CacheService.getScriptCache().remove('roster_depts'); } catch (e) { /* ignore */ } }
+function clearRosterCaches_() { allRoster_._m = null; try { CacheService.getScriptCache().removeAll(['roster_depts', 'roster_depts2']); } catch (e) { /* ignore */ } }
 
 /** ค้นรายชื่อ (ชื่อ นามสกุล หรือหน่วยงาน) — สำหรับเลือกลบ */
 function apiRosterSearch_(me, d) {
@@ -2981,8 +2993,7 @@ function apiRosterImport_(me, d) {
   if (sh.getLastRow() > 1) sh.getRange(2, 1, sh.getLastRow() - 1, width).clearContent();
   const grid = out.map(o => { const a = new Array(width).fill(''); ROSTER_FIELDS.forEach(([k]) => { a[map[k] - 1] = o[k]; }); return a; });
   if (grid.length) sh.getRange(2, 1, grid.length, width).setValues(grid);
-  allRoster_._m = null;
-  try { CacheService.getScriptCache().remove('roster_depts'); } catch (e) { /* ignore */ }
+  clearRosterCaches_();
   const info = { at: thaiDateTime_(now), by: me.name, file: clip_(d.file, 120), source: clip_(d.source, 30), total: Number(d.total) || rows.length, excluded: Number(d.excluded) || 0 };
   setSetting_('ROSTER_INFO', JSON.stringify(info));
   // ตรวจผู้แจ้งทุกคนใหม่ตามรายชื่อชุดนี้ (ไม่แตะผลที่แอดมินตัดสินแล้ว)
@@ -3176,9 +3187,12 @@ function setupRichMenu() {
     const old = setting_(k, '');
     if (old) { try { lineApi_('/v2/bot/richmenu/' + old, null, 'delete'); } catch (e) { /* ignore */ } }
   });
-  const area = (x, w, uri, label) => ({ bounds: { x: x, y: 0, width: w, height: 843 }, action: { type: 'uri', uri: uri, label: label } });
+  // ปุ่มแจ้งซ่อมใหญ่ด้านซ้าย + 3 ปุ่มด้านขวา (รูปขนาด 2500x1686 จาก templates/build_richmenu.py)
+  const act = (uri, label) => ({ type: 'uri', uri: uri, label: label });
+  const layout = (big, rows) => [{ bounds: { x: 0, y: 0, width: 1150, height: 1686 }, action: big }]
+    .concat(rows.map((a, i) => ({ bounds: { x: 1150, y: i * 562, width: 1350, height: 562 }, action: a })));
   const make = (name, areas, img) => {
-    const r = lineApi_('/v2/bot/richmenu', { size: { width: 2500, height: 843 }, selected: true, name: name, chatBarText: 'เมนูแจ้งซ่อม', areas: areas });
+    const r = lineApi_('/v2/bot/richmenu', { size: { width: 2500, height: 1686 }, selected: true, name: name, chatBarText: 'เมนูแจ้งซ่อม', areas: areas });
     const png = UrlFetchApp.fetch(base + img).getBlob();
     const up = UrlFetchApp.fetch('https://api-data.line.me/v2/bot/richmenu/' + r.richMenuId + '/content', {
       method: 'post', contentType: 'image/png', payload: png.getBytes(),
@@ -3187,9 +3201,10 @@ function setupRichMenu() {
     if (up.getResponseCode() >= 300) throw new Error('อัปโหลดรูป rich menu ไม่สำเร็จ: ' + up.getContentText());
     return r.richMenuId;
   };
-  const userId = make('ผู้ใช้ทั่วไป', [area(0, 834, liffUrl_('form'), 'แจ้งซ่อม'), area(834, 833, liffUrl_('mine'), 'ติดตามงาน'), area(1667, 833, liffUrl_('kb'), 'แก้ปัญหาเอง')], 'richmenu_user.png');
-  const techId = make('ช่าง', [area(0, 834, liffUrl_('form'), 'แจ้งซ่อม'), area(834, 833, liffUrl_('staff'), 'งานของฉัน'), area(1667, 833, liffUrl_('cal'), 'ตารางงาน')], 'richmenu_tech.png');
-  const adminId = make('แอดมิน', [area(0, 834, liffUrl_('form'), 'แจ้งซ่อม'), area(834, 833, liffUrl_('staff'), 'จัดการงาน'), area(1667, 833, liffUrl_('dash'), 'ภาพรวม')], 'richmenu_admin.png');
+  const form = act(liffUrl_('form'), 'แจ้งซ่อม');
+  const userId = make('ผู้ใช้ทั่วไป', layout(form, [act(liffUrl_('mine'), 'ติดตามงาน'), act(liffUrl_('kb'), 'แก้ปัญหาเอง'), act(hotlineUrl_(), 'สายด่วน')]), 'richmenu_user.png');
+  const techId = make('ช่าง', layout(form, [act(liffUrl_('staff'), 'งานของฉัน'), act(liffUrl_('cal'), 'ตารางงาน'), act(liffUrl_('kb'), 'คลังความรู้')]), 'richmenu_tech.png');
+  const adminId = make('แอดมิน', layout(form, [act(liffUrl_('staff'), 'จัดการงาน'), act(liffUrl_('dash'), 'ภาพรวม'), act(liffUrl_('cal'), 'ตารางงาน')]), 'richmenu_admin.png');
   lineApi_('/v2/bot/user/all/richmenu/' + userId, null);
   setSetting_('RICHMENU_USER_ID', userId);
   setSetting_('RICHMENU_TECH_ID', techId);
@@ -3197,6 +3212,15 @@ function setupRichMenu() {
   setSetting_('RICHMENU_STAFF_ID', '');   // เมนูเจ้าหน้าที่ชุดเดิม (รวมช่าง+แอดมิน) เลิกใช้แล้ว
   activeStaff_().forEach(s => linkMenu_(s.uid, s.role, true));
   try { SpreadsheetApp.getUi().alert('สร้าง Rich menu แล้ว'); } catch (e) { /* no ui */ }
+}
+
+/** ปุ่มสายด่วน: ใช้ HOTLINE_URL ใน Settings ถ้ามี (เช่น tel:025797xxx) ไม่งั้นโทรหา LINE OA ผ่าน LINE Call */
+function hotlineUrl_() {
+  const u = str_(setting_('HOTLINE_URL', ''));
+  if (u) return u;
+  const id = str_(lineApi_('/v2/bot/info', null, 'get').basicId);   // เช่น @123abcde
+  if (!id) throw new Error('ไม่พบ Basic ID ของ LINE OA — กรอก HOTLINE_URL ใน Settings แทน');
+  return 'https://line.me/R/oa/call/' + id;
 }
 
 function testLine() {

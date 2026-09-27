@@ -197,6 +197,11 @@ table.tt td{text-align:center;padding:8px 4px;border-bottom:1px solid var(--line
 .rchk.bad{background:var(--bad-soft);color:var(--bad)}
 .grpchk{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}.grpchk input{width:20px;height:20px}.grpchk span{flex:1}
 @media(min-width:900px){.vf-list{display:grid;grid-template-columns:1fr 1fr;gap:12px}.vf-list .card{margin:0}}
+.pick{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;border:1px solid var(--line);background:#FBFCFD;border-radius:10px;padding:11px 12px;font:inherit;font-size:15px;text-align:left}
+.pick{color:var(--ink)}.pick .ph{color:var(--muted)}.pick i{font-style:normal;color:var(--muted)}
+.dpg{font-size:12.5px;font-weight:700;color:var(--muted);padding:12px 4px 4px;position:sticky;top:0;background:var(--card)}
+.dpi{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:10px 6px;font:inherit;font-size:15px;color:var(--ink)}
+.dpi span{display:block;font-size:12px;color:var(--muted)}.dpi.on{background:var(--pri-soft)}
 </style>
 <link rel="preconnect" href="https://script.google.com" crossorigin>
 <link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
@@ -394,6 +399,38 @@ function verifyNote(P) {
   if (P.verify === 'denied') return `<div class="note warn" style="margin:12px 0 0;background:var(--bad-soft);color:var(--bad)">${esc(P.deny_text || 'บัญชีนี้ไม่มีสิทธิ์แจ้งซ่อม')}</div>`;
   return `<div class="note warn" style="margin:12px 0 0">ยังไม่ยืนยันตัวตน: ${esc(P.verify_reason || '')}<br><span class="small">แจ้งซ่อมได้ตามปกติ เจ้าหน้าที่จะตรวจสอบภายหลัง · ตรวจชื่อ-นามสกุลและหน่วยงานให้ตรงกับทะเบียนบุคลากร</span></div>`;
 }
+/** เลือกภาควิชา/หน่วยงานจากทะเบียนบุคลากร — ค้นได้ แยกตามสังกัด และพิมพ์เองได้ถ้าไม่พบ */
+function deptPicker(depts, cur, onPick) {
+  app.insertAdjacentHTML('beforeend', `<div class="sheet" id="dpSheet"><div class="sbox" style="height:86vh;display:flex;flex-direction:column">
+    <h2 style="margin-bottom:8px">เลือกภาควิชา/หน่วยงาน</h2>
+    <input type="search" id="dpQ" placeholder="🔍 ค้นหา เช่น สรีรวิทยา, อายุรกรรม, พัสดุ" autocomplete="off">
+    <div id="dpL" style="flex:1;overflow:auto;margin:8px -4px 0;padding:0 4px"></div>
+    <div style="border-top:1px solid var(--line);padding-top:10px;margin-top:6px" id="dpOther"><a href="javascript:void 0" id="dpOwn">ไม่พบหน่วยงานของฉัน — พิมพ์เอง</a></div>
+    <div class="row" style="margin-top:10px"><button class="btn sec" id="dpX">ยกเลิก</button></div></div></div>`);
+  const close = () => { const e = $('#dpSheet'); if (e) e.remove(); };
+  const norm = t => String(t || '').toLowerCase().replace(/\s+/g, '');
+  const draw = () => {
+    const q = norm($('#dpQ').value);
+    const l = depts.filter(x => !q || norm(x.v + x.p).indexOf(q) >= 0).slice(0, 200);
+    let last = null, h = '';
+    l.forEach((x, i) => {
+      const top = x.p ? x.p.split(' › ')[0] : x.v;
+      if (top !== last) { h += `<div class="dpg">${esc(top)}</div>`; last = top; }
+      h += `<button type="button" class="dpi${x.v === cur ? ' on' : ''}" data-i="${depts.indexOf(x)}"><b>${esc(x.v)}</b>${x.p && x.p !== top ? `<span>${esc(x.p)}</span>` : ''}</button>`;
+    });
+    $('#dpL').innerHTML = h || '<div class="empty">ไม่พบ — ลองคำอื่น หรือกด "พิมพ์เอง" ด้านล่าง</div>';
+    app.querySelectorAll('#dpL [data-i]').forEach(b => b.onclick = () => { onPick(depts[+b.dataset.i].v); close(); });
+  };
+  $('#dpQ').oninput = draw; draw();
+  $('#dpX').onclick = close; $('#dpSheet').onclick = e => { if (e.target.id === 'dpSheet') close(); };
+  $('#dpOwn').onclick = () => {
+    $('#dpOther').innerHTML = `<label class="f">พิมพ์ชื่อหน่วยงาน</label><div class="row"><input type="text" id="dpT" value="${esc($('#dpQ').value)}"><button class="btn sm" id="dpTOk" style="flex:none;width:auto;padding:0 18px">ใช้ชื่อนี้</button></div>
+      <div class="hint">ถ้าไม่ตรงกับทะเบียนบุคลากร เจ้าหน้าที่จะตรวจสอบก่อน (ยังแจ้งซ่อมได้)</div>`;
+    $('#dpT').focus();
+    $('#dpTOk').onclick = () => { const v = $('#dpT').value.trim(); if (v.length < 2) return toast('กรุณาพิมพ์ชื่อหน่วยงาน'); onPick(v); close(); };
+  };
+  setTimeout(() => { const q = $('#dpQ'); if (q && window.innerWidth > 700) q.focus(); }, 50);
+}
 function pageReg() {
   const P = INIT.me.profile || {}, first = !INIT.me.profile, L = INIT.lists;
   let bld = P.building || '';
@@ -401,22 +438,24 @@ function pageReg() {
     <div class="note">${first ? 'ลงทะเบียนครั้งแรกครั้งเดียว ระบบจะผูกบัญชี LINE นี้กับข้อมูลของคุณ และกรอกให้อัตโนมัติทุกครั้งที่แจ้งซ่อม' : 'แก้ไขข้อมูลที่ใช้กรอกอัตโนมัติในฟอร์มแจ้งซ่อม'}</div>
     <div class="card"><h2>ข้อมูลผู้แจ้ง</h2>
       <label class="f">ชื่อ-นามสกุล <b>*</b></label><input type="text" id="nm" value="${esc(P.name || INIT.me.name)}">
-      <label class="f">ภาควิชา/หน่วยงาน <b>*</b></label><input type="text" id="dep" list="depList" autocomplete="off" value="${esc(P.department || '')}" placeholder="พิมพ์แล้วเลือกจากรายการ">
-      <datalist id="depList">${(L.depts || []).map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+      <label class="f">ภาควิชา/หน่วยงาน <b>*</b></label>${(L.depts || []).length
+        ? `<button type="button" class="pick" id="depBtn"><span id="depTxt" class="${P.department ? '' : 'ph'}">${esc(P.department || 'แตะเพื่อเลือก หรือค้นหา')}</span><i>▾</i></button><input type="hidden" id="dep" value="${esc(P.department || '')}">`
+        : `<input type="text" id="dep" value="${esc(P.department || '')}">`}
       <label class="f">หมายเลขติดต่อกลับ <b>*</b></label><input type="tel" id="ph" value="${esc(P.phone || '')}">
       <div class="hint">กรอกชื่อ-นามสกุลจริงและหน่วยงานให้ตรงกับทะเบียนบุคลากร ระบบจะยืนยันตัวตนให้อัตโนมัติ</div>${verifyNote(P)}</div>
     <div class="card"><h2>สถานที่ทำงานประจำ <b style="color:var(--bad)">*</b></h2>
-      <div class="hint" style="margin:0 0 8px">เลือกอาคาร หรือกรอกชั้น/ห้อง อย่างน้อย 1 ช่อง</div>
+      <div class="hint" style="margin:0 0 8px">เลือกอาคาร แล้วกรอกชั้นและห้อง (ช่างใช้หาที่ทำงานของคุณ)</div>
       <div class="chips" id="bld">${L.buildings.map(b => `<button type="button" class="chip${b === bld ? ' on' : ''}" data-b="${esc(b)}">${esc(b)}</button>`).join('')}</div>
-      <div class="row"><div><label class="f">ชั้น</label><input type="text" id="fl" inputmode="numeric" value="${esc(P.floor || '')}"></div>
-      <div><label class="f">ห้อง</label><input type="text" id="rm" value="${esc(P.room || '')}"></div></div></div>
+      <div class="row"><div><label class="f">ชั้น <b>*</b></label><input type="text" id="fl" inputmode="numeric" value="${esc(P.floor || '')}"></div>
+      <div><label class="f">ห้อง <b>*</b></label><input type="text" id="rm" value="${esc(P.room || '')}"></div></div></div>
     ${first ? `<div class="card"><label class="consent"><input type="checkbox" id="pdpa"><span>${esc(INIT.pdpa)}</span></label></div>` : ''}
   </div><div class="bar"><div class="in"><button class="btn" id="save">${first ? 'ลงทะเบียน แล้วไปแจ้งซ่อม' : 'บันทึก'}</button></div></div>`;
   app.querySelectorAll('#bld .chip').forEach(c => c.onclick = () => { bld = bld === c.dataset.b ? '' : c.dataset.b; app.querySelectorAll('#bld .chip').forEach(x => x.classList.toggle('on', x.dataset.b === bld)); });
+  if ($('#depBtn')) $('#depBtn').onclick = () => deptPicker(L.depts, $('#dep').value, v => { $('#dep').value = v; $('#depTxt').textContent = v; $('#depTxt').className = ''; });
   $('#save').onclick = async () => {
     const d = { name: $('#nm').value.trim(), department: $('#dep').value.trim(), phone: $('#ph').value.trim(), building: bld, floor: $('#fl').value.trim(), room: $('#rm').value.trim(), pdpa: first ? $('#pdpa').checked : true };
     const miss = !d.name ? 'ชื่อ-นามสกุล' : !d.department ? 'ภาควิชา/หน่วยงาน' : !d.phone ? 'หมายเลขติดต่อกลับ'
-      : (!d.building && !d.floor && !d.room) ? 'สถานที่ทำงานประจำ อย่างน้อย 1 ช่อง' : !d.pdpa ? 'การยินยอมเก็บข้อมูล' : '';
+      : !d.building ? 'อาคารที่ทำงานประจำ' : !d.floor ? 'ชั้น' : !d.room ? 'ห้อง' : !d.pdpa ? 'การยินยอมเก็บข้อมูล' : '';
     if (miss) return toast('กรุณากรอก: ' + miss);
     const r = await run(() => api('saveProfile', d));
     INIT.me.profile = r.profile; CACHE.set('init', INIT);
@@ -996,7 +1035,7 @@ function rosterAddSheet(depts) {
     <label class="f">หน่วยงาน/ภาควิชา</label><input type="text" data-f="dept" list="rDepList" autocomplete="off" placeholder="พิมพ์แล้วเลือกจากรายการ"></div>`;
   app.insertAdjacentHTML('beforeend', `<div class="sheet" id="raSheet"><div class="sbox"><h2>เพิ่มรายชื่อบุคลากร</h2>
     <div class="hint">สำหรับเพิ่มทีละ 1–2 คน (เช่น บุคลากรใหม่) ถ้าจำนวนมากให้ใช้ "นำเข้าไฟล์ .xls"</div>
-    <datalist id="rDepList">${depts.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+    <datalist id="rDepList">${depts.map(x => `<option value="${esc(x.p ? x.p + ' › ' + x.v : x.v)}">`).join('')}</datalist>
     <div id="raRows">${row(1)}</div>
     <div style="margin:10px 0"><a href="javascript:void 0" id="raMore">➕ เพิ่มอีก 1 คน</a></div>
     <div class="row"><button class="btn sec" id="raX">ยกเลิก</button><button class="btn" id="raOk">บันทึก</button></div></div></div>`);
