@@ -446,7 +446,7 @@ function verifyNote(P) {
   if (!P || !P.verify) return '';
   if (P.verify === 'verified' || P.verify === 'approved') return '<div class="note" style="margin:12px 0 0;background:#EBFBEE;color:#2B8A3E">✓ ยืนยันตัวตนแล้ว</div>';
   if (P.verify === 'denied') return `<div class="note warn" style="margin:12px 0 0;background:var(--bad-soft);color:var(--bad)">${esc(P.deny_text || 'บัญชีนี้ไม่มีสิทธิ์แจ้งซ่อม')}</div>`;
-  return `<div class="note warn" style="margin:12px 0 0">ยังไม่ยืนยันตัวตน: ${esc(P.verify_reason || '')}<br><span class="small">แจ้งซ่อมได้ตามปกติ เจ้าหน้าที่จะตรวจสอบภายหลัง · ตรวจชื่อ-นามสกุลและหน่วยงานให้ตรงกับทะเบียนบุคลากร</span></div>`;
+  return `<div class="note warn" style="margin:12px 0 0">ยังไม่ยืนยันตัวตน: ${esc(P.verify_reason || '')}<br><span class="small">แจ้งซ่อมได้ตามปกติ เจ้าหน้าที่จะตรวจสอบภายหลัง · ตรวจชื่อ-นามสกุลให้ตรงกับทะเบียนบุคลากร</span></div>`;
 }
 /** เลือกภาควิชา/หน่วยงานแบบขั้นบันได: สังกัดใหญ่ → แผนก → หน่วย (ค้นหาได้ และพิมพ์เองได้ถ้าไม่พบ) */
 function deptPicker(depts, cur, onPick) {
@@ -562,7 +562,7 @@ function pageForm() {
   const lockDept = !!P.department, lockPhone = !!P.phone;
   app.innerHTML = topBar('แจ้งซ่อมคอมพิวเตอร์และอุปกรณ์') + `<div class="wrap">
     <div class="note">กรอกข้อมูลให้ครบ ระบบจะออก <b>รหัสคิว</b> ให้ทันที และออก <b>รหัสแจ้งซ่อม</b> เมื่อเจ้าหน้าที่นัดหมายเวลาเข้าดำเนินการ · กำหนดแล้วเสร็จภายใน ${INIT.slaDays} วันทำการ (จ–ศ)<br>💡 <a href="javascript:void 0" onclick="go('kb')">ลองดูวิธีแก้ปัญหาเบื้องต้นก่อน</a> — บางปัญหาแก้เองได้ใน 1 นาที</div>
-    ${P.verify === 'pending' ? `<div class="note warn">ยังไม่ยืนยันตัวตน — แจ้งซ่อมได้ตามปกติ · <a href="javascript:void 0" onclick="go('reg')"><b>ตรวจชื่อและหน่วยงาน</b></a> ให้ตรงกับทะเบียนบุคลากร</div>` : ''}
+    ${P.verify === 'pending' ? `<div class="note warn">ยังไม่ยืนยันตัวตน — แจ้งซ่อมได้ตามปกติ · <a href="javascript:void 0" onclick="go('reg')"><b>ตรวจชื่อ-นามสกุล</b></a> ให้ตรงกับทะเบียนบุคลากร</div>` : ''}
     <div class="card"><h2><span class="n">1</span>ผู้แจ้ง <a href="javascript:void 0" onclick="go('reg')" class="small" style="margin-left:auto;font-weight:400">แก้ข้อมูลของฉัน</a></h2>
       <label class="f">ชื่อ-นามสกุล</label><div class="ro">${esc(P.name || INIT.me.name)}</div>
       <label class="f">ภาควิชา/หน่วยงาน <b>*</b></label>${lockDept ? `<div class="ro">${esc(st.dept)}</div>` : hasDepts
