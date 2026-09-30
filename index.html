@@ -520,6 +520,7 @@ function pageReg() {
 }
 
 const CAT_HINT = { 'Hardware': 'เครื่องเสีย ย้าย/ติดตั้ง', 'Software': 'โปรแกรม Windows Antivirus', 'Network': 'อินเทอร์เน็ต WiFi สาย LAN', 'CCTV & Access Control': 'กล้อง บัตร สแกนนิ้ว/ใบหน้า' };
+const CARD_DOC_MAX = 2;   // รูปเอกสารทำบัตร (บัตรหาย) — ตรงกับฝั่ง Apps Script
 function formCats(L) {
   const used = {}; L.groups.forEach(g => g.items.forEach(it => { if (it.cat) used[it.cat] = 1; }));
   const list = (L.categories || []).filter(c => used[c]).map(c => ({ key: c, label: c, hint: CAT_HINT[c] || '' }));
@@ -539,15 +540,18 @@ function pageForm() {
   if (P.building) quick.push({ k: 'home', label: '🏢 ที่ทำงานประจำของฉัน · ' + locTxt(P), v: P });
   if (last && last.building && locTxt(last) !== locTxt(P)) quick.push({ k: 'last', label: '🕘 ที่แจ้งครั้งล่าสุด · ' + locTxt(last), v: last });
   const hasDepts = (L.depts || []).length > 0;
+  // ลงทะเบียนแล้ว = ล็อกหน่วยงาน/เบอร์ (แก้ที่ "แก้ข้อมูลของฉัน") — ช่องที่ยังว่างให้กรอกได้
+  const lockDept = !!P.department, lockPhone = !!P.phone;
   app.innerHTML = topBar('แจ้งซ่อมคอมพิวเตอร์และอุปกรณ์') + `<div class="wrap">
     <div class="note">กรอกข้อมูลให้ครบ ระบบจะออก <b>รหัสคิว</b> ให้ทันที และออก <b>รหัสแจ้งซ่อม</b> เมื่อเจ้าหน้าที่นัดหมายเวลาเข้าดำเนินการ · กำหนดแล้วเสร็จภายใน ${INIT.slaDays} วันทำการ (จ–ศ)<br>💡 <a href="javascript:void 0" onclick="go('kb')">ลองดูวิธีแก้ปัญหาเบื้องต้นก่อน</a> — บางปัญหาแก้เองได้ใน 1 นาที</div>
     ${P.verify === 'pending' ? `<div class="note warn">ยังไม่ยืนยันตัวตน — แจ้งซ่อมได้ตามปกติ · <a href="javascript:void 0" onclick="go('reg')"><b>ตรวจชื่อและหน่วยงาน</b></a> ให้ตรงกับทะเบียนบุคลากร</div>` : ''}
     <div class="card"><h2><span class="n">1</span>ผู้แจ้ง <a href="javascript:void 0" onclick="go('reg')" class="small" style="margin-left:auto;font-weight:400">แก้ข้อมูลของฉัน</a></h2>
       <label class="f">ชื่อ-นามสกุล</label><div class="ro">${esc(P.name || INIT.me.name)}</div>
-      <label class="f">ภาควิชา/หน่วยงาน <b>*</b></label>${hasDepts
+      <label class="f">ภาควิชา/หน่วยงาน <b>*</b></label>${lockDept ? `<div class="ro">${esc(st.dept)}</div>` : hasDepts
         ? `<button type="button" class="pick" id="depBtn"><span id="depTxt" class="${st.dept ? '' : 'pph'}">${esc(st.dept || 'แตะเพื่อเลือก หรือค้นหา')}</span><i>▾</i></button>`
         : `<input type="text" id="department" value="${esc(st.dept)}">`}
-      <label class="f">หมายเลขติดต่อกลับ <b>*</b></label><input type="tel" id="phone" value="${esc(P.phone || '')}">
+      <label class="f">หมายเลขติดต่อกลับ <b>*</b></label>${lockPhone ? `<div class="ro">${esc(P.phone)}</div>` : `<input type="tel" id="phone" value="${esc(P.phone || '')}">`}
+      ${lockDept || lockPhone ? '<div class="hint">ต้องการเปลี่ยนข้อมูลผู้แจ้ง กด “แก้ข้อมูลของฉัน” ด้านบน</div>' : ''}
     </div>
     <div class="card"><h2><span class="n">2</span>สถานที่พบปัญหา <b style="color:var(--bad)">*</b></h2>
       <div class="hint" style="margin:0 0 8px">ระบุตำแหน่งของอุปกรณ์ที่ชำรุด (อาจไม่ใช่ที่ทำงานประจำของคุณ เช่น ประจำอยู่อาคารจักรฯ ชั้น 3 แต่พบปัญหาที่อาคาร 6 รอบ ชั้น 2 ห้อง 9216)</div>
@@ -581,6 +585,8 @@ function pageForm() {
   if ($('#depBtn')) $('#depBtn').onclick = () => deptPicker(L.depts, st.dept, v => { st.dept = v; $('#depTxt').textContent = v; $('#depTxt').className = ''; });
   const FLAG = {}; L.groups.forEach(g => g.items.forEach(it => { FLAG[it.id] = it; }));
   const needCard = () => [...st.items].some(i => FLAG[i] && FLAG[i].card);
+  const needDoc = () => st.items.has('i3_1');     // บัตรหาย → ต้องแนบเอกสารทำบัตร
+  let docs = { list: [] };
   const keepCard = { name: '', no: '' };
   // ① เลือกประเภทก่อน → ② แสดงเฉพาะรายการของประเภทนั้น (จัดกลุ่มตามหัวข้อในฟอร์ม FM-PPM-2-01) เลือกได้ 1 รายการ
   const drawItems = key => {
@@ -590,10 +596,15 @@ function pageForm() {
     $('#items').innerHTML = L.groups.filter(g => g.items.some(inCat)).map(g => `<div class="grp"><div class="gh"><span class="gn">${g.no}.</span><span>${esc(g.name)}</span></div>
       ${g.items.filter(inCat).map(it => `<label class="chk"><input type="radio" name="item" value="${it.id}"${st.items.has(it.id) ? ' checked' : ''}><span>${esc(it.name)}</span></label>`).join('')}
       ${g.items.some(it => it.card) ? `<div class="cardBox hidden"><label class="f">ชื่อ-นามสกุล (เจ้าของบัตร) <b>*</b></label><input type="text" id="card_name" value="${esc(keepCard.name)}">
-        <label class="f">เลขหลังบัตรบุคลากร/บัตรจอดรถ</label><input type="text" id="card_no" value="${esc(keepCard.no)}"></div>` : ''}</div>`).join('')
+        <label class="f">เลขหลังบัตรบุคลากร/บัตรจอดรถ</label><input type="text" id="card_no" value="${esc(keepCard.no)}">
+        <div class="docBox hidden"><label class="f">แนบรูปเอกสารทำบัตร <b>*</b> <span class="small">(ไม่เกิน ${CARD_DOC_MAX} รูป)</span></label><div class="photos" id="cardDocs"></div></div></div>` : ''}</div>`).join('')
       || '<div class="muted small">ยังไม่มีรายการในประเภทนี้</div>';
     $('#itemsBox').classList.remove('hidden');
-    const sync = () => app.querySelectorAll('.cardBox').forEach(b => b.classList.toggle('hidden', !needCard()));
+    docs = $('#cardDocs') ? photoPicker($('#cardDocs'), CARD_DOC_MAX) : { list: [] };
+    const sync = () => {
+      app.querySelectorAll('.cardBox').forEach(b => b.classList.toggle('hidden', !needCard()));
+      app.querySelectorAll('.docBox').forEach(b => b.classList.toggle('hidden', !needDoc()));
+    };
     app.querySelectorAll('#items input[type=radio]').forEach(rb => rb.onchange = () => { st.items = new Set([rb.value]); sync(); });
     sync();
   };
@@ -609,11 +620,11 @@ function pageForm() {
 
   $('#submit').onclick = async () => {
     const v = id => $('#' + id).value.trim();
-    const d = { reqId, reporter_name: P.name, department: hasDepts ? st.dept : v('department'), phone: v('phone'), building: st.building,
+    const d = { reqId, reporter_name: P.name, department: lockDept || hasDepts ? st.dept : v('department'), phone: lockPhone ? P.phone : v('phone'), building: st.building,
       floor: v('floor'), room: v('room'), item_ids: [...st.items], detail: v('detail'), card_name: $('#card_name') ? v('card_name') : '', card_no: $('#card_no') ? v('card_no') : '',
-      photos: photos.list, pdpa: true, signature: sig.isEmpty() ? '' : sig.toDataURL() };
+      photos: photos.list, card_docs: needDoc() ? docs.list : [], pdpa: true, signature: sig.isEmpty() ? '' : sig.toDataURL() };
     const miss = !d.department ? 'ภาควิชา/หน่วยงาน' : !d.phone ? 'หมายเลขติดต่อกลับ' : !d.building ? 'อาคาร (สถานที่พบปัญหา)' : !d.floor ? 'ชั้น (สถานที่พบปัญหา)' : !d.room ? 'ห้อง (ไม่มีเลขห้อง ใส่ -)'
-      : !st.cat ? 'ประเภทของปัญหา' : !d.item_ids.length ? 'รายการที่ต้องการแจ้งซ่อม' : d.detail.length < 5 ? 'รายละเอียด/สาเหตุ ให้ชัดเจน' : (needCard() && !d.card_name) ? 'ชื่อเจ้าของบัตร'
+      : !st.cat ? 'ประเภทของปัญหา' : !d.item_ids.length ? 'รายการที่ต้องการแจ้งซ่อม' : d.detail.length < 5 ? 'รายละเอียด/สาเหตุ ให้ชัดเจน' : (needCard() && !d.card_name) ? 'ชื่อเจ้าของบัตร' : (needDoc() && !d.card_docs.length) ? 'รูปเอกสารทำบัตร'
       : !d.photos.length ? 'รูปประกอบอย่างน้อย 1 รูป' : !d.signature ? 'ลายเซ็น' : '';
     if (miss) return toast('กรุณากรอก: ' + miss);
     LS.set('reporter2', { building: d.building, floor: d.floor, room: d.room });
@@ -798,8 +809,8 @@ function drawAccept(r, no, onsite) {
     <div class="card"><h2>ภาควิชา/หน่วยงาน พิจารณาแล้ว เห็นว่างานที่ได้รับมอบหมาย</h2>
       <div class="seg"><button type="button" class="on" data-r="pass">✓ ผ่าน</button><button type="button" data-r="fail">✎ แก้ไข</button></div>
       <div id="rsBox" class="hidden"><label class="f">สิ่งที่ต้องแก้ไข <b>*</b></label><textarea id="reason" placeholder="ระบุสิ่งที่ยังไม่เรียบร้อย ช่างจะแก้ไขภายใน ${INIT.slaDays} วันทำการ"></textarea></div>
-      <label class="f" style="margin-top:14px">ผู้รับบริการประเมินผู้ปฏิบัติงาน <b>*</b></label>
-      <div class="rate">${ratings.map(x => `<button type="button" data-v="${x[0]}"><b>${x[0]}</b>${x[1]}</button>`).join('')}</div></div>
+      <div id="rtBox"><label class="f" style="margin-top:14px">ผู้รับบริการประเมินผู้ปฏิบัติงาน <b>*</b></label>
+      <div class="rate">${ratings.map(x => `<button type="button" data-v="${x[0]}"><b>${x[0]}</b>${x[1]}</button>`).join('')}</div></div></div>
     <div class="card"><h2>ลงนาม</h2><label class="f">ชื่อผู้ลงนาม (ผู้แจ้ง/ผู้อยู่หน้างาน) <b>*</b></label>
       <input type="text" id="signer" value="${esc(onsite ? '' : t.reporter_name)}"><label class="f">ลายเซ็น <b>*</b></label><div class="sig" id="sig"></div></div>
     <div style="height:8px"></div>`;
@@ -808,12 +819,15 @@ function drawAccept(r, no, onsite) {
   app.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
     st.result = b.dataset.r; app.querySelectorAll('.seg button').forEach(x => x.classList.toggle('on', x === b));
     b.classList.toggle('bad', st.result === 'fail'); $('#rsBox').classList.toggle('hidden', st.result !== 'fail');
+    // ส่งกลับแก้ไข = ยังไม่ประเมินผู้ปฏิบัติงาน (ประเมินตอนตรวจผ่าน)
+    $('#rtBox').classList.toggle('hidden', st.result === 'fail');
+    $('#send').textContent = st.result === 'fail' ? 'ส่งกลับแก้ไข' : 'ยืนยันผลตรวจงาน';
   });
   app.querySelectorAll('.rate button').forEach(b => b.onclick = () => { st.rating = +b.dataset.v; app.querySelectorAll('.rate button').forEach(x => x.classList.toggle('on', x === b)); });
   const sig = signaturePad($('#sig'));
   $('#send').onclick = async () => {
-    const d = { no, onsite, result: st.result, reason: $('#reason').value.trim(), rating: st.rating, signer_name: $('#signer').value.trim(), signature: sig.isEmpty() ? '' : sig.toDataURL() };
-    const miss = st.result === 'fail' && !d.reason ? 'สิ่งที่ต้องแก้ไข' : !d.rating ? 'คะแนนประเมิน' : !d.signer_name ? 'ชื่อผู้ลงนาม' : !d.signature ? 'ลายเซ็น' : '';
+    const d = { no, onsite, result: st.result, reason: $('#reason').value.trim(), rating: st.result === 'pass' ? st.rating : 0, signer_name: $('#signer').value.trim(), signature: sig.isEmpty() ? '' : sig.toDataURL() };
+    const miss = st.result === 'fail' && !d.reason ? 'สิ่งที่ต้องแก้ไข' : st.result === 'pass' && !d.rating ? 'คะแนนประเมิน' : !d.signer_name ? 'ชื่อผู้ลงนาม' : !d.signature ? 'ลายเซ็น' : '';
     if (miss) return toast('กรุณากรอก: ' + miss);
     await run(() => api('accept', d));
     refresh('t' + no, 'mine', 'staff'); CACHE.drop('ov');
